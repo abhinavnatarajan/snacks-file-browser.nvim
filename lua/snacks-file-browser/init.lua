@@ -10,12 +10,12 @@ end
 
 --- Open the file browser picker with specified actions and keys
 -- -@param opts? table  -- Optional configuration table
-function M.file_browser(opts)
+function M.open(opts)
 	opts = vim.tbl_deep_extend('force', Config.get(), opts or {})
 
 	-- Configure the picker to use the actions and keys from options or defaults
 	local cwd = opts.cwd or M.uv.cwd()
-	local picker = require('snacks').picker({
+	return require('snacks').picker({
 		cwd = cwd,
 		show_empty = opts.show_empty,
 		hidden = opts.hidden,
@@ -52,7 +52,7 @@ function M.file_browser(opts)
 		end,
 		format = 'file',
 		on_show = function(picker)
-			M.update_title(picker, picker:cwd())
+			Actions.update_title(picker, picker:cwd())
 		end,
 		actions = Actions.actions,
 
@@ -60,10 +60,10 @@ function M.file_browser(opts)
 	})
 end
 
-M.setup()
-
 setmetatable(M, {
 	__call = function(table, opts)
-		table.file_browser(opts)
+		table.open(opts)
 	end,
 })
+
+return M

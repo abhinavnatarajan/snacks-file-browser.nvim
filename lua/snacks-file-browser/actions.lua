@@ -347,7 +347,10 @@ end
 
 local ret = {
 	actions = vim.iter(M)
-		:fold({}, function(acc, k, v) acc[k] = { action = v } end)
+		:fold({}, function(acc, k, v) acc[k] = { action = v } end),
+	update_title = update_title,
+
 }
+
 
 return ret
