@@ -1,4 +1,5 @@
 local Snacks = require('snacks')
+local Path = require('plenary.path')
 local uv = vim.uv
 local M = {}
 
@@ -87,7 +88,7 @@ local function copy_path(path, dir)
 	if not stat then
 		return { [path] = { ok = false, err = err } }
 	end
-	path = uv.fs_realpath(path)
+	path = uv.fs_realpath(path) or path
 	if stat.type == "file" then
 		local destination = vim.fs.joinpath(dir, vim.fs.basename(path))
 		local ok, err = uv.fs_copyfile(path, destination,
@@ -166,6 +167,10 @@ end
 
 function M.confirm(picker, item)
 	local snacks = require('snacks')
+	local callback = picker.opts.callback or function(path, _picker)
+		_picker:close()
+		edit_path(path)
+	end
 	-- Case 1: No items are tab-selected and no valid item is in the list
 	if not item or item.score == 0 then
 		local new_path = vim.fs.joinpath(picker:cwd(), picker.input:get())
@@ -179,8 +184,7 @@ function M.confirm(picker, item)
 			snacks.notify.info("Created directory: " .. new_path)
 			set_picker_cwd(picker, new_path)
 		else
-			picker:close()
-			edit_path(new_path)
+			callback(new_path, picker)
 		end
 		return
 	end
@@ -191,8 +195,7 @@ function M.confirm(picker, item)
 	if stat and stat.type == 'directory' then
 		set_picker_cwd(picker, file)
 	elseif vim.fn.filereadable(file) == 1 then
-		picker:close()
-		edit_path(file)
+		callback(file, picker)
 	end
 end
 
@@ -347,9 +350,11 @@ end
 
 local ret = {
 	actions = vim.iter(M)
-		:fold({}, function(acc, k, v) acc[k] = { action = v } end),
+		:fold({}, function(acc, k, v)
+			acc[k] = { action = v }
+			return acc
+		end),
 	update_title = update_title,
-
 }
 
 

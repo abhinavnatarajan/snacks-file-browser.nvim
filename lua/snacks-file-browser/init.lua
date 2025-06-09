@@ -23,6 +23,7 @@ function M.open(opts)
 		follow = opts.follow,
 		supports_live = true,
 		layout = opts.layout,
+		confirm_callback = opts.callback,
 		finder = function(_opts, ctx)
 			local args = {
 				"--follow",
@@ -40,12 +41,12 @@ function M.open(opts)
 				{
 					cmd = "fd",
 					args = args,
-					transform = function(item, ctx)
+					transform = function(item, _ctx)
 						-- fdfind appends a "/" to the end of a file path if it is a directory
 						if item.text:sub(-1) == M.pathsep then
 							item.dir = true
 						end
-						item.file = vim.fs.normalize(vim.fs.abspath(vim.fs.joinpath(ctx.picker:cwd(), item.text)))
+						item.file = vim.fs.normalize(vim.fs.abspath(vim.fs.joinpath(_ctx.picker:cwd(), item.text)))
 					end,
 				}
 			}, ctx)
