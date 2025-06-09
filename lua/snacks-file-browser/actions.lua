@@ -222,7 +222,7 @@ function M.copy(picker)
 	local snacks = require('snacks')
 	local files = {} ---@type string[]
 	for _, item in ipairs(picker:selected({ fallback = false })) do
-		table.insert(files, M.item_path(item))
+		table.insert(files, item.file)
 	end
 	local dir = picker:cwd()
 	vim.schedule(function()
@@ -311,7 +311,7 @@ end
 function M.rename(picker, selected)
 	local snacks = require('snacks')
 	if not selected then return end
-	local old_path = uv.fs_realpath(M.item_path(selected))
+	local old_path = uv.fs_realpath(selected.file)
 	snacks.rename.rename_file({ from = old_path, on_rename = function() picker:find() end })
 end
 
