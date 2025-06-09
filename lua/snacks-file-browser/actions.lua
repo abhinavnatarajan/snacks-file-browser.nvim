@@ -346,11 +346,13 @@ function M.create_new(picker)
 		dir = new_path
 		return
 	else
-		Path:new(new_path):touch({ parents = true })
 		dir = vim.fs.dirname(new_path)
+		if vim.fn.mkdir(dir, "p") == 0 then
+			snacks.notify.error("Could not create directory " .. new_path)
+			return
+		end
 	end
 	set_picker_cwd(picker, dir)
-	M.update_title(picker, picker:cwd())
 end
 
 local ret = {

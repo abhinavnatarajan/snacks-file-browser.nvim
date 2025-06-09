@@ -61,7 +61,6 @@ function M.open(opts)
 			Actions.update_title(picker, picker:cwd())
 		end,
 		actions = Actions.actions,
-
 		win = opts.win
 	})
 end
