@@ -172,7 +172,7 @@ end
 
 function M.confirm(picker, item)
 	local snacks = require('snacks')
-	local callback = picker.opts.callback or function(path, _picker)
+	local callback = picker.opts.on_confirm or function(path, _picker)
 		_picker:close()
 		edit_path(path)
 	end
@@ -281,7 +281,7 @@ function M.delete(picker)
 	end
 	local sel = picker:selected({ fallback = true })
 	if #sel == 0 then return end
-	local message = #sel == 1 and vim.fs.joinpath(sel[1].cwd, sel[1].file) or #sel .. " files"
+	local message = #sel == 1 and vim.fs.joinpath(sel.file) or #sel .. " files"
 	local focus_input = vim.api.nvim_get_current_win() == picker.input.win.win
 	local insert_mode = vim.fn.mode() == "i"
 	vim.ui.select(

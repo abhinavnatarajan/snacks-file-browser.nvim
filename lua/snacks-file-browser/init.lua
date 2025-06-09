@@ -24,7 +24,7 @@ function M.open(opts)
 		follow = opts.follow,
 		supports_live = true,
 		layout = opts.layout,
-		confirm_callback = opts.callback,
+		on_confirm = opts.on_confirm,
 		finder = function(_opts, ctx)
 			local args = {
 				"--follow",
