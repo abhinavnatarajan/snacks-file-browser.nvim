@@ -1,5 +1,6 @@
 local Config = require('snacks-file-browser.config')
 local Actions = require('snacks-file-browser.actions')
+local os_pathsep = package.config:sub(1, 1)
 
 local M = {}
 
@@ -14,7 +15,7 @@ function M.open(opts)
 	opts = vim.tbl_deep_extend('force', Config.get(), opts or {})
 
 	-- Configure the picker to use the actions and keys from options or defaults
-	local cwd = opts.cwd or M.uv.cwd()
+	local cwd = opts.cwd or vim.uv.cwd()
 	return require('snacks').picker({
 		cwd = cwd,
 		show_empty = opts.show_empty,
@@ -29,12 +30,16 @@ function M.open(opts)
 				"--follow",
 				"--max-depth=1",
 				"--color=never",
+				"--strip-cwd-prefix"
 			}
 			if _opts.hidden then
 				vim.list_extend(args, { "--hidden" })
 			end
 			if _opts.ignored then
 				vim.list_extend(args, { "--no-ignore" })
+			end
+			if _opts.follow then
+				vim.list_extend(args, { "--follow" })
 			end
 			return require('snacks.picker.source.proc').proc({
 				_opts,
@@ -43,7 +48,7 @@ function M.open(opts)
 					args = args,
 					transform = function(item, _ctx)
 						-- fdfind appends a "/" to the end of a file path if it is a directory
-						if item.text:sub(-1) == M.pathsep then
+						if item.text:sub(-1) == os_pathsep then
 							item.dir = true
 						end
 						item.file = vim.fs.normalize(vim.fs.abspath(vim.fs.joinpath(_ctx.picker:cwd(), item.text)))

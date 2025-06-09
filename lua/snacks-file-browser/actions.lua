@@ -63,6 +63,7 @@ local function move_paths(paths, dir)
 		return path ~= "" and uv.fs_stat(path)
 	end):totable()
 	if not dir_iswriteable(dir) then return end
+	local count = 0
 	vim.iter(paths):each(
 		function(path)
 			local old_path = uv.fs_realpath(path)
@@ -71,8 +72,12 @@ local function move_paths(paths, dir)
 			Snacks.rename.rename_file({
 				from = old_path,
 				to = new_path,
+				on_rename = function()
+					count = count + 1
+				end
 			})
 		end)
+	return count
 end
 
 ---Copy a file or directory to a new location
@@ -241,7 +246,7 @@ function M.copy(picker)
 				end
 				return acc
 			end)
-		snacks.notify.info("Copied " .. pasted .. " files")
+		snacks.notify.info("Copied " .. #files .. " items (total " .. pasted .. " files)")
 		if #errors > 0 then
 			snacks.notify.error("Error while copying items:\n" .. table.concat(result, "\n"))
 		end
@@ -258,7 +263,7 @@ function M.move(picker)
 	end
 	local dir = picker:cwd()
 	vim.schedule(function()
-		local moved, errs = move_paths(files, dir)
+		local moved = move_paths(files, dir)
 		if not moved then
 			snacks.notify.error("Error while moving items: " .. vim.inspect(errs))
 			return
