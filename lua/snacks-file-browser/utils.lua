@@ -353,7 +353,7 @@ function M.move_paths(paths, dir, opts)
 		local count = 0
 		local errors = {}
 		local co = coroutine.running()
-		for i, path in ipairs(paths) do
+		for _, path in ipairs(paths) do
 			local old_path = uv.fs_realpath(path)
 			local new_path = vim.fs.joinpath(dir, vim.fs.basename(path))
 			vim.schedule(function()

@@ -1,6 +1,5 @@
 local Config = require('snacks-file-browser.config')
 local Actions = require('snacks-file-browser.actions')
-local os_pathsep = package.config:sub(1, 1)
 
 local M = {}
 
@@ -13,6 +12,7 @@ end
 -- -@param opts? table  -- Optional configuration table
 function M.open(opts)
 	opts = vim.tbl_deep_extend('force', Config.get(), opts or {})
+	local os_pathsep = package.config:sub(1, 1)
 
 	-- Configure the picker to use the actions and keys from options or defaults
 	local cwd = opts.cwd or vim.uv.cwd()
