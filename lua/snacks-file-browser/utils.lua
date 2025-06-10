@@ -276,9 +276,9 @@ local function copy_path(path, dir, path_type, callback)
 			local children = vim.fs.dir(path, { follow = false })
 			local co = coroutine.running()
 			for name, type in children do
-				if type ~= "file" or type ~= "directory" then
+				if type ~= "file" and type ~= "directory" then
 					errors[#errors + 1] = "Unsupported file type: " .. type .. " for " .. name
-					return
+					goto continue
 				end
 				local child_path = vim.fs.joinpath(path, name)
 				copy_path(child_path, new_dir, type, function(err_inner)
@@ -288,6 +288,7 @@ local function copy_path(path, dir, path_type, callback)
 					coroutine.resume(co)
 				end)
 				coroutine.yield()
+				::continue::
 			end
 			callback(#errors > 0 and errors or nil)
 		end))
