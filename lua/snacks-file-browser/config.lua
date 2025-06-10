@@ -4,6 +4,9 @@ local default_config = {
 	ignored = false,
 	follow = false,
 	supports_live = true,
+	rename = {
+		notify_lsp_clients = true
+	},
 	layout = {
 		preview = true,
 		preset = "default",

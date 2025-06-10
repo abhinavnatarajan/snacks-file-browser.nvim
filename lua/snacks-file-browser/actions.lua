@@ -1,5 +1,5 @@
 local Snacks = require('snacks')
-local Path = require('plenary.path')
+local Utils = require('snacks-file-browser.utils')
 local uv = vim.uv
 local M = {}
 
@@ -24,14 +24,14 @@ local function set_picker_cwd(picker, new_cwd)
 	picker:find()
 end
 
--- Navigate up one directory
+---Navigate up one directory
 function M.navigate_parent(picker)
 	local cwd = picker:cwd()
 	local parent = vim.fs.dirname(cwd)
 	set_picker_cwd(picker, parent)
 end
 
--- Either remove a character from the input or navigate up one directory
+---Either remove a character from the input or navigate up one directory
 function M.backspace(picker)
 	if picker.input:get() == '' then
 		M.navigate_parent(picker)
@@ -41,97 +41,9 @@ function M.backspace(picker)
 	end
 end
 
----@return boolean|nil, string|nil
-local function dir_iswriteable(dir)
-	local stat = uv.fs_stat(dir)
-	if not stat then
-		Snacks.notify.error("Could not stat destination directory: " .. dir)
-	elseif stat.type ~= "directory" then
-		Snacks.notify.error("Destination is not a directory: " .. dir)
-	elseif not uv.fs_access(dir, "w") then
-		Snacks.notify.error("Destination is not writable: " .. dir)
-	else
-		return true
-	end
-end
-
----Move a file or directory to a new location
----@param paths string[]  -- List of absolute file paths to move
----@param dir string  -- Destination directory
-local function move_paths(paths, dir)
-	paths = vim.iter(paths):filter(function(path)
-		return path ~= "" and uv.fs_stat(path)
-	end):totable()
-	if not dir_iswriteable(dir) then return end
-	local count = 0
-	vim.iter(paths):each(
-		function(path)
-			local old_path = uv.fs_realpath(path)
-			local new_path = vim.fs.joinpath(dir, vim.fs.basename(path))
-			-- TODO: account for directories, snacks can't rename directories
-			Snacks.rename.rename_file({
-				from = old_path,
-				to = new_path,
-				on_rename = function()
-					count = count + 1
-				end
-			})
-		end)
-	return count
-end
-
----Copy a file or directory to a new location
----@param path string  -- Absolute file path to copy
----@param dir string  -- Destination directory
----@return table
-local function copy_path(path, dir)
-	-- Normalize the path so that trailing slashes are removed
-	if not uv.fs_access(path, "r") then
-		return { [path] = { ok = false, err = "Not readable" } }
-	end
-	local stat, err = uv.fs_stat(path)
-	if not stat then
-		return { [path] = { ok = false, err = err } }
-	end
-	path = uv.fs_realpath(path) or path
-	if stat.type == "file" then
-		local destination = vim.fs.joinpath(dir, vim.fs.basename(path))
-		local ok, err = uv.fs_copyfile(path, destination,
-			{ excl = false, ficlone = true, ficlone_force = false })
-		return { [path] = { ok = ok, err = err } }
-	end
-	if stat.type == "directory" then
-		local new_dir = vim.fs.joinpath(dir, vim.fs.basename(path))
-		local ok = vim.fn.mkdir(new_dir, "p")
-		if ok == 0 then
-			return { [path] = { ok = false, err = "Could not create directory in destination" } }
-		end
-		return vim.iter(vim.fs.dir(path, { follow = false })):map(
-			function(name)
-				local child_path = vim.fs.joinpath(path, name)
-				return copy_path(child_path, new_dir)
-			end
-		):fold({}, function(acc, t)
-			return vim.tbl_extend('force', acc, t)
-		end)
-	end
-	return { [path] = { ok = false, err = "Not a file or directory" } }
-end
-
----Copy a list of files or paths to a new location
----@param paths string[]  -- List of file paths to copy
----@param dir string  -- Destination directory
----@return (table|nil), (nil|string)
-local function copy_paths(paths, dir)
-	local ok, err = dir_iswriteable(dir)
-	if not ok then return nil, err end
-	return vim.iter(paths):map(
-			function(path)
-				return copy_path(path, dir)
-			end)
-		:fold({}, function(acc, t)
-			return vim.tbl_extend('force', acc, t)
-		end)
+---Rerun the finder
+function M.refresh(picker)
+	picker:find()
 end
 
 local function edit_path(p)
@@ -155,6 +67,7 @@ local function edit_paths(p)
 	return true
 end
 
+---Edit the selected file(s)
 function M.edit(picker)
 	local selected = picker:selected({ fallback = true })
 	if #selected > 0 then
@@ -167,11 +80,17 @@ function M.edit(picker)
 		picker:close()
 		edit_paths(readable_files)
 		return
+	else
+		Snacks.notify.error("No files selected to edit")
 	end
 end
 
+---Set the cwd of neovim from the picker
+function M.set_cwd(picker)
+	vim.cmd("tcd " .. vim.fn.fnameescape(picker:cwd()))
+end
+
 function M.confirm(picker, item)
-	local snacks = require('snacks')
 	local callback = picker.opts.on_confirm or function(path, _picker)
 		_picker:close()
 		edit_path(path)
@@ -182,12 +101,14 @@ function M.confirm(picker, item)
 		-- if the path is a directory we create it and navigate into it
 		local os_pathsep = package.config:sub(1, 1)
 		if new_path:sub(-1):find(os_pathsep) then
-			if vim.fn.mkdir(new_path, "p") == 0 then
-				snacks.notify.error("Could not create directory " .. new_path)
-				return
-			end
-			snacks.notify.info("Created directory: " .. new_path)
-			set_picker_cwd(picker, new_path)
+			Utils.mkdir(new_path, nil, vim.schedule_wrap(function(err)
+				if err then
+					Snacks.notify.error("Could not create directory " .. new_path)
+					return
+				end
+				Snacks.notify.info("Created directory: " .. new_path)
+				set_picker_cwd(picker, new_path)
+			end))
 		else
 			callback(new_path, picker)
 		end
@@ -195,21 +116,79 @@ function M.confirm(picker, item)
 	end
 
 	-- Case 2: A valid item is in in the list
-	local file = item.file
-	local stat = uv.fs_stat(file)
-	if stat and stat.type == 'directory' then
-		set_picker_cwd(picker, file)
-	elseif vim.fn.filereadable(file) == 1 then
-		callback(file, picker)
+	local path = item.file
+	uv.fs_stat(path, vim.schedule_wrap(function(err, stat)
+		if err then
+			Snacks.notify.error("Could not stat file: " .. err)
+			return
+		end
+		if stat.type == 'directory' then
+			set_picker_cwd(picker, path)
+		elseif stat.type == "file" then
+			callback(path, picker)
+		end
+	end))
+end
+
+---Rename the currently selected file or directory
+function M.rename(picker, selected)
+	if not selected then return end
+	local notify_lsp_clients = picker.opts.rename.notify_lsp_clients
+	local old_path = uv.fs_realpath(selected.file)
+	local old_file_name = selected.text
+	vim.ui.input({ prompt = "Enter new name: " }, function(input)
+		local new_path = vim.fs.abspath(vim.fs.normalize(vim.fs.joinpath(picker:cwd(), input)))
+		Utils.rename_path(old_path, new_path, {
+			notify_lsp_clients = notify_lsp_clients,
+			callback = vim.schedule_wrap(function(err)
+				if err then
+					Snacks.notify.error("Rename failed: " .. err)
+					return
+				end
+				Snacks.notify.info("Renamed " .. old_file_name .. " to " .. input)
+				picker:find()
+			end)
+		})
+	end
+	)
+end
+
+---Create a new file or directory based on the input in the picker
+function M.create_new(picker)
+	local new_path = vim.fs.joinpath(picker:cwd(), picker.input:get())
+
+	if vim.fn.filereadable(new_path) == 1 then
+		Snacks.notify.info("Item already exists")
+		return
+	end
+
+	-- if the path is a directory we create it and navigate into it
+	local dir = ""
+	if new_path:sub(-1) == "/" then
+		if vim.fn.isdirectory(new_path) == 0 then
+			Utils.mkdir(new_path, nil, vim.schedule_wrap(function(err)
+				if err then
+					Snacks.notify.error("Could not create " .. new_path .. "\n" .. err)
+					return
+				end
+				set_picker_cwd(picker, new_path)
+				Snacks.notify.info("Created directory: " .. new_path)
+			end))
+		end
+	else
+		-- Create the file asynchronously
+		dir = vim.fs.dirname(new_path)
+		Utils.create_file(new_path, vim.schedule_wrap(function(err)
+			if err then
+				Snacks.notify(err)
+				return
+			end
+			set_picker_cwd(picker, dir)
+		end))
 	end
 end
 
-function M.set_cwd(picker)
-	vim.cmd("tcd " .. vim.fn.fnameescape(picker:cwd()))
-end
-
 function M.yank(picker)
-	local snacks = require('snacks')
 	local files = {} ---@type string[]
 	if vim.fn.mode():find("^[vV]") then
 		picker.list:select() -- add the visual selection to the list of selected items
@@ -220,68 +199,57 @@ function M.yank(picker)
 	local value = table.concat(files, "\n")
 	vim.fn.setreg(vim.v.register or "+", value, "l")
 	local message = #files == 1 and files[1] or #files .. " items"
-	snacks.notify.info("Yanked " .. message)
+	Snacks.notify.info("Yanked " .. message)
 end
 
 function M.copy(picker)
-	local snacks = require('snacks')
 	local files = {} ---@type string[]
 	for _, item in ipairs(picker:selected({ fallback = false })) do
 		table.insert(files, item.file)
 	end
 	local dir = picker:cwd()
-	vim.schedule(function()
-		local result, err = copy_paths(files, dir)
-		if not result then
-			snacks.notify.info(err)
-			return
+	Utils.copy_paths(files, dir, vim.schedule_wrap(function(errors, copied_count)
+		if errors then
+			Snacks.notify.error("Error while copying items:\n" .. table.concat(errors, "\n"))
 		end
-		local errors = {}
-		local pasted = vim.iter(result):fold(0,
-			function(acc, path, res)
-				if res.ok then
-					acc = acc + 1
-				else
-					vim.tbl_insert(errors, path .. ": " .. res.err)
-				end
-				return acc
-			end)
-		snacks.notify.info("Copied " .. #files .. " items (total " .. pasted .. " files)")
-		if #errors > 0 then
-			snacks.notify.error("Error while copying items:\n" .. table.concat(result, "\n"))
+		if copied_count then
+			Snacks.notify.info("Copied " .. copied_count .. " items")
 		end
 		picker.list:set_selected()
 		picker:find()
-	end)
+	end))
 end
 
 function M.move(picker)
-	local snacks = require('snacks')
 	local files = {} ---@type string[]
 	for _, item in ipairs(picker:selected({ fallback = false })) do
 		table.insert(files, item.file)
 	end
 	local dir = picker:cwd()
-	vim.schedule(function()
-		local moved = move_paths(files, dir)
-		if not moved then
-			snacks.notify.error("Error while moving items: " .. vim.inspect(errs))
-			return
-		end
-		snacks.notify.info("Moved " .. moved .. " items")
-		picker.list:set_selected()
-		picker:find()
-	end)
+	Utils.move_paths(files, dir, {
+		notify_lsp_clients = picker.opts.rename.notify_lsp_clients or false,
+		callback = vim.schedule_wrap(function(err, num_moved)
+			if err then
+				Snacks.notify.error("Error while moving items: \n" .. table.concat(err, "\n"))
+				return
+			end
+			if num_moved then
+				-- might have some items moved even if there were errors
+				Snacks.notify.info("Moved " .. num_moved .. " items")
+				picker.list:set_selected()
+				picker:find()
+			end
+		end)
+	})
 end
 
 function M.delete(picker)
-	local snacks = require('snacks')
 	if vim.fn.mode():find("^[vV]") then
 		picker.list:select() -- add the visual selection to the list of selected items
 	end
 	local sel = picker:selected({ fallback = true })
 	if #sel == 0 then return end
-	local message = #sel == 1 and vim.fs.joinpath(sel.file) or #sel .. " files"
+	local message = #sel == 1 and vim.fs.joinpath(sel.file) or #sel .. " items"
 	local focus_input = vim.api.nvim_get_current_win() == picker.input.win.win
 	local insert_mode = vim.fn.mode() == "i"
 	vim.ui.select(
@@ -295,14 +263,14 @@ function M.delete(picker)
 					local file = item.file
 					local ok, err = pcall(vim.fs.rm, file, { recursive = true })
 					if ok then
-						snacks.bufdelete({ file = file, force = true, wipe = true })
+						Snacks.bufdelete({ file = file, force = true, wipe = true })
 						num_deleted = num_deleted + 1
 						picker.list:unselect(item)
 					else
-						snacks.notify.error("Delete failed: " .. err)
+						Snacks.notify.error("Delete failed: " .. err)
 					end
 				end)
-			snacks.notify.info("Deleted " .. num_deleted .. " items")
+			Snacks.notify.info("Deleted " .. num_deleted .. " items")
 			picker:find() -- Refresh the picker
 			if focus_input then
 				picker:focus("input")
@@ -311,48 +279,6 @@ function M.delete(picker)
 				vim.cmd("startinsert")
 			end
 		end)
-end
-
-function M.rename(picker, selected)
-	local snacks = require('snacks')
-	if not selected then return end
-	local old_path = uv.fs_realpath(selected.file)
-	snacks.rename.rename_file({ from = old_path, on_rename = function() picker:find() end })
-end
-
-function M.refresh(picker)
-	picker:find()
-end
-
-function M.create_new(picker)
-	local snacks = require('snacks')
-	local new_path = vim.fs.joinpath(picker:cwd(), picker.input:get())
-
-	if vim.fn.filereadable(new_path) == 1 then
-		snacks.notify.info("Item already exists")
-		return
-	end
-
-	-- if the path is a directory we create it and navigate into it
-	local dir = ""
-	if new_path:sub(-1) == "/" then
-		if vim.fn.isdirectory(new_path) == 0 then
-			if vim.fn.mkdir(new_path, "p") == 0 then
-				snacks.notify.error("Could not create " .. new_path)
-				return
-			end
-			snacks.notify("Created directory: " .. new_path, { level = "info" })
-		end
-		dir = new_path
-		return
-	else
-		dir = vim.fs.dirname(new_path)
-		if vim.fn.mkdir(dir, "p") == 0 then
-			snacks.notify.error("Could not create directory " .. new_path)
-			return
-		end
-	end
-	set_picker_cwd(picker, dir)
 end
 
 local ret = {

@@ -25,6 +25,7 @@ function M.open(opts)
 		supports_live = true,
 		layout = opts.layout,
 		on_confirm = opts.on_confirm,
+		rename = opts.rename,
 		finder = function(_opts, ctx)
 			local args = {
 				"--follow",
