@@ -15,7 +15,7 @@ end
 ---@param picker any
 ---@param new_cwd string
 local function set_picker_cwd(picker, new_cwd)
-	local resolved_cwd = uv.fs_realpath(new_cwd)
+	local resolved_cwd = vim.fs.normalize(new_cwd)
 	if resolved_cwd and resolved_cwd ~= picker:cwd() then
 		picker:set_cwd(resolved_cwd)
 		update_title(picker, new_cwd)
@@ -134,23 +134,24 @@ end
 function M.rename(picker, selected)
 	if not selected then return end
 	local notify_lsp_clients = picker.opts.rename.notify_lsp_clients
-	local old_path = uv.fs_realpath(selected.file)
 	local old_file_name = selected.text
-	vim.ui.input({ prompt = "Enter new name: " }, function(input)
-		local new_path = vim.fs.abspath(vim.fs.normalize(vim.fs.joinpath(picker:cwd(), input)))
-		Utils.rename_path(old_path, new_path, {
-			notify_lsp_clients = notify_lsp_clients,
-			callback = vim.schedule_wrap(function(err)
+	local old_path = vim.fs.normalize(selected.file)
+
+	local function rename_callback(new_name)
+		local new_path = vim.fs.abspath(vim.fs.normalize(vim.fs.joinpath(picker:cwd(), new_name)))
+		Utils.rename_path(old_path, new_path,
+			notify_lsp_clients,
+			vim.schedule_wrap(function(err)
 				if err then
 					Snacks.notify.error("Rename failed: " .. err)
 					return
 				end
-				Snacks.notify.info("Renamed " .. old_file_name .. " to " .. input)
+				Snacks.notify.info("Renamed " .. old_file_name .. " to " .. new_name)
 				picker:find()
 			end)
-		})
+		)
 	end
-	)
+	vim.ui.input({ prompt = "Enter new name: " }, rename_callback)
 end
 
 ---Create a new file or directory based on the input in the picker
@@ -208,11 +209,12 @@ function M.copy(picker)
 		table.insert(files, item.file)
 	end
 	local dir = picker:cwd()
-	Utils.copy_paths(files, dir, vim.schedule_wrap(function(errors, copied_count)
+	Utils.copy_paths(files, dir, vim.schedule_wrap(function(errors)
 		if errors then
 			Snacks.notify.error("Error while copying items:\n" .. table.concat(errors, "\n"))
 		end
-		if copied_count then
+		local copied_count = #files - (errors and #errors or 0)
+		if copied_count > 0 then
 			Snacks.notify.info("Copied " .. copied_count .. " items")
 		end
 		picker.list:set_selected()

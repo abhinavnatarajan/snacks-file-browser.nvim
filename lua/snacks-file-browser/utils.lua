@@ -180,19 +180,12 @@ end
 ---Will update buffer names if the file (or any files contained in the directory)
 ---are open in buffers in Neovim.
 ---Will also emit appropriate lsp notifications to clients that support it
----@param opts table  -- Options for the rename operation
----opts.callback callable -- runs in a fast context
----opts.lsp_send_notification boolean  -- Whether to send LSP notifications
-function M.rename_path(from, to, opts)
-	opts = opts or {}
-	local notify_lsp_clients = opts.notify_lsp_clients or false
-	local callback = opts.callback or function(_) end
-
-	local from_stat = uv.fs_stat(from)
-	if not from_stat then
-		callback("Source path does not exist: " .. from)
-		return
-	end
+---@param from string  -- Absolute path of the file or directory to rename
+---@param to string  -- Absolute path of the new name for the file or directory
+---@param notify_lsp_clients boolean  -- Whether to notify LSP clients about the rename
+---@param callback function  -- Callback function to call when the rename is complete
+function M.rename_path(from, to, notify_lsp_clients, callback)
+	callback = callback or function(_) end
 
 	local lsp_changes = {
 		files = { {
@@ -218,8 +211,8 @@ function M.rename_path(from, to, opts)
 	-- Send LSP pre-rename notifications
 	local clients = notify_lsp_clients and vim.lsp.get_clients() or {}
 	for _, client in ipairs(clients) do
-		if client.supports_method("workspace/willRenameFiles") then
-			local resp = client.request_sync("workspace/willRenameFiles", lsp_changes, 1000, 0)
+		if client:supports_method("workspace/willRenameFiles") then
+			local resp = client:request_sync("workspace/willRenameFiles", lsp_changes, 1000, 0)
 			if resp and resp.result ~= nil then
 				vim.lsp.util.apply_workspace_edit(resp.result, client.offset_encoding)
 			end
@@ -240,8 +233,8 @@ function M.rename_path(from, to, opts)
 
 				-- Send LSP notifications
 				for _, client in ipairs(clients) do
-					if client.supports_method("workspace/didRenameFiles") then
-						client.notify("workspace/didRenameFiles", lsp_changes)
+					if client:supports_method("workspace/didRenameFiles") then
+						client:notify("workspace/didRenameFiles", lsp_changes)
 					end
 				end
 			end)
@@ -306,34 +299,36 @@ function M.copy_paths(paths, dir, callback)
 			return
 		end
 		local errors = {}
-		local count = 0
-		local co = coroutine.running()
+		local done = 0
+		local num_files = #paths
 		for _, path in ipairs(paths) do
 			uv.fs_stat(path, function(err_stat, stat)
 				if err_stat then
 					vim.list_extend(errors, { err_stat })
-					coroutine.resume(co)
-					return
-				end
-				if not stat then
+					done = done + 1
+				elseif not stat then
 					vim.list_extend(errors, { "Could not stat path: " .. path })
-					coroutine.resume(co)
-					return
-				end
-				if stat.type == "file" or stat.type == "directory" then
+					done = done + 1
+				elseif stat.type ~= "file" and stat.type ~= "directory" then
+					vim.list_extend(errors, { "Unsupported file type: " .. stat.type .. " for " .. path })
+					done = done + 1
+				else
 					copy_path(path, dir, stat.type, function(err_copy)
 						if err_copy then
 							vim.list_extend(errors, err_copy)
-						else
-							count = count + 1
 						end
-						coroutine.resume(co)
+						done = done + 1
+						if done == num_files then
+							callback(#errors > 0 and errors or nil)
+						end
 					end)
+					return
+				end
+				if done == num_files then
+					callback(#errors > 0 and errors or nil)
 				end
 			end)
-			coroutine.yield()
 		end
-		callback(#errors > 0 and errors or nil, count)
 	end))
 end
 
@@ -354,12 +349,14 @@ function M.move_paths(paths, dir, opts)
 		local errors = {}
 		local co = coroutine.running()
 		for _, path in ipairs(paths) do
-			local old_path = uv.fs_realpath(path)
+			local old_path = vim.fs.normalize(path)
 			local new_path = vim.fs.joinpath(dir, vim.fs.basename(path))
 			vim.schedule(function()
-				M.rename_path(old_path, new_path, {
-					notify_lsp_clients = notify_lsp_clients,
-					callback = function(err_rename)
+				M.rename_path(
+					old_path,
+					new_path,
+					notify_lsp_clients,
+					function(err_rename)
 						if err_rename then
 							errors[#errors + 1] = "Could not move " ..
 								old_path .. " to " .. new_path .. "\n" .. err_rename
@@ -368,7 +365,7 @@ function M.move_paths(paths, dir, opts)
 						end
 						coroutine.resume(co)
 					end
-				})
+				)
 			end)
 			coroutine.yield()
 		end
