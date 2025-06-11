@@ -1,18 +1,18 @@
 local M = {}
 local uv = vim.uv
 
--- Recursively creates an absolute directory and all its parent directories asynchronously.
--- (Implemented iteratively, assumes path is absolute if not nil/empty)
+---Recursively creates an absolute directory and all its parent directories asynchronously.
+---(Implemented iteratively, assumes path is absolute if not nil/empty)
 --
--- @param path string The absolute directory path to create.
---        If path is nil or empty, behavior is to attempt mkdir on that value, which will fail.
--- @param mode number|nil Optional. The file mode (permissions) for the directories,
---        e.g., tonumber("755", 8). Defaults to tonumber("755", 8).
--- @param callback function|nil Optional. A callback function `function(err)` that is
---        called upon completion. `err` is nil on success, or an error object
---        (table with `code`, `name`, `message`, `errno`) on failure.
+---@param path string The absolute directory path to create.
+---       If path is nil or empty, behavior is to attempt mkdir on that value, which will fail.
+---@param mode number|nil Optional. The file mode (permissions) for the directories,
+---       e.g., tonumber("755", 8). Defaults to tonumber("755", 8).
+---@param callback function|nil Optional. A callback function `function(err)` that is
+---       called upon completion. `err` is nil on success, or an error object
+---       (table with `code`, `name`, `message`, `errno`) on failure.
 function M.mkdir(path, mode, callback)
-	local final_cb = callback or function() end
+	local final_cb = vim.schedule_wrap(callback or function() end)
 	local actual_mode = mode or tonumber("755", 8)
 
 	-- Helper function to attempt creating a single directory,
@@ -142,11 +142,9 @@ end
 
 ---Asynchronously create a file at the given path
 ---@param file string  -- Absolute path to the file to create
----@param callback function  -- Callback function to call when the file is created
----callback should accept two arguments: success (boolean) and error message (string)
----callback takes place in a fast_context
+---@param callback function | nil  -- Callback function to call when the file is created
 function M.create_file(file, callback)
-	callback = callback or function(_) end
+	callback = vim.schedule_wrap(callback or function(_) end)
 	-- Create the parent directory, or make sure it is writeable
 	local dir = vim.fs.dirname(file)
 	M.mkdir(dir, nil, function(err)
@@ -225,19 +223,18 @@ function M.rename_path(from, to, notify_lsp_clients, callback)
 			return
 		end
 
-		vim.schedule(
-			function()
-				for key, val in pairs(buf_renames) do
-					vim.api.nvim_buf_set_name(key, val)
-				end
+		vim.schedule(function()
+			for key, val in pairs(buf_renames) do
+				vim.api.nvim_buf_set_name(key, val)
+			end
 
-				-- Send LSP notifications
-				for _, client in ipairs(clients) do
-					if client:supports_method("workspace/didRenameFiles") then
-						client:notify("workspace/didRenameFiles", lsp_changes)
-					end
+			-- Send LSP notifications
+			for _, client in ipairs(clients) do
+				if client:supports_method("workspace/didRenameFiles") then
+					client:notify("workspace/didRenameFiles", lsp_changes)
 				end
-			end)
+			end
+		end)
 		callback(nil) -- success
 	end
 
@@ -268,20 +265,26 @@ local function copy_path(path, dir, path_type, callback)
 			local errors = {}
 			local children = vim.fs.dir(path, { follow = false })
 			local co = coroutine.running()
+			local total = 0
+			local done = 0
 			for name, type in children do
+				total = total + 1
 				if type ~= "file" and type ~= "directory" then
-					errors[#errors + 1] = "Unsupported file type: " .. type .. " for " .. name
-					goto continue
+					table.insert(errors, "Unsupported file type: " .. type .. " for " .. name)
+					done = done + 1
+				else
+					local child_path = vim.fs.joinpath(path, name)
+					copy_path(child_path, new_dir, type, function(err_inner)
+						if err_inner then
+							vim.list_extend(errors, err_inner)
+						end
+						done = done + 1
+						vim.schedule(function() coroutine.resume(co) end)
+					end)
 				end
-				local child_path = vim.fs.joinpath(path, name)
-				copy_path(child_path, new_dir, type, function(err_inner)
-					if err_inner then
-						vim.list_extend(errors, err_inner or {})
-					end
-					coroutine.resume(co)
-				end)
-				coroutine.yield()
-				::continue::
+			end
+			while done < total do
+				coroutine.yield() -- Wait for all copies to complete
 			end
 			callback(#errors > 0 and errors or nil)
 		end))
@@ -291,7 +294,6 @@ end
 ---Copy a list of files or paths to a new location
 ---@param paths string[]  -- List of file paths to copy
 ---@param dir string  -- Destination directory
----@return (table|nil), (nil|string)
 function M.copy_paths(paths, dir, callback)
 	is_writeable_dir(dir, coroutine.wrap(function(err)
 		if err then
@@ -300,35 +302,38 @@ function M.copy_paths(paths, dir, callback)
 		end
 		local errors = {}
 		local done = 0
-		local num_files = #paths
+		local co = coroutine.running()
 		for _, path in ipairs(paths) do
 			uv.fs_stat(path, function(err_stat, stat)
 				if err_stat then
-					vim.list_extend(errors, { err_stat })
+					table.insert(errors, err_stat)
 					done = done + 1
+					-- we want to return from this function without waiting for the
+					-- coroutine to resume, so we schedule it
+					vim.schedule(function() coroutine.resume(co) end)
 				elseif not stat then
-					vim.list_extend(errors, { "Could not stat path: " .. path })
+					table.insert(errors, "Could not stat path: " .. path)
 					done = done + 1
+					vim.schedule(function() coroutine.resume(co) end)
 				elseif stat.type ~= "file" and stat.type ~= "directory" then
-					vim.list_extend(errors, { "Unsupported file type: " .. stat.type .. " for " .. path })
+					table.insert(errors, "Unsupported file type: " .. stat.type .. " for " .. path)
 					done = done + 1
+					vim.schedule(function() coroutine.resume(co) end)
 				else
 					copy_path(path, dir, stat.type, function(err_copy)
 						if err_copy then
 							vim.list_extend(errors, err_copy)
 						end
 						done = done + 1
-						if done == num_files then
-							callback(#errors > 0 and errors or nil)
-						end
+						vim.schedule(function() coroutine.resume(co) end)
 					end)
-					return
-				end
-				if done == num_files then
-					callback(#errors > 0 and errors or nil)
 				end
 			end)
 		end
+		while done < #paths do
+			coroutine.yield() -- Wait for all copies to complete
+		end
+		vim.schedule(function() callback(#errors > 0 and errors or nil) end)
 	end))
 end
 
@@ -345,7 +350,7 @@ function M.move_paths(paths, dir, opts)
 			callback(err)
 			return
 		end
-		local count = 0
+		local done = 0
 		local errors = {}
 		local co = coroutine.running()
 		for _, path in ipairs(paths) do
@@ -358,18 +363,19 @@ function M.move_paths(paths, dir, opts)
 					notify_lsp_clients,
 					function(err_rename)
 						if err_rename then
-							errors[#errors + 1] = "Could not move " ..
-								old_path .. " to " .. new_path .. "\n" .. err_rename
-						else
-							count = count + 1
+							table.insert(errors, "Could not move " ..
+								old_path .. " to " .. new_path .. "\n" .. err_rename)
 						end
-						coroutine.resume(co)
+						done = done + 1
+						vim.schedule(function() coroutine.resume(co) end)
 					end
 				)
 			end)
-			coroutine.yield()
 		end
-		callback(#errors > 0 and errors or nil, count)
+		while done < #paths do
+			coroutine.yield() -- Wait for all renames to complete
+		end
+		vim.schedule(function() callback(#errors > 0 and errors or nil) end)
 	end))
 end
 

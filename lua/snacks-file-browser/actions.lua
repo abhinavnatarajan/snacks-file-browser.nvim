@@ -95,20 +95,20 @@ function M.confirm(picker, item)
 		_picker:close()
 		edit_path(path)
 	end
-	-- Case 1: No items are tab-selected and no valid item is in the list
+	-- Case 1: No items in the list or the items do not match the input
 	if not item or item.score == 0 then
 		local new_path = vim.fs.joinpath(picker:cwd(), picker.input:get())
 		-- if the path is a directory we create it and navigate into it
 		local os_pathsep = package.config:sub(1, 1)
 		if new_path:sub(-1):find(os_pathsep) then
-			Utils.mkdir(new_path, nil, vim.schedule_wrap(function(err)
+			Utils.mkdir(new_path, nil, function(err)
 				if err then
 					Snacks.notify.error("Could not create directory " .. new_path)
 					return
 				end
 				Snacks.notify.info("Created directory: " .. new_path)
 				set_picker_cwd(picker, new_path)
-			end))
+			end)
 		else
 			callback(new_path, picker)
 		end
@@ -167,25 +167,25 @@ function M.create_new(picker)
 	local dir = ""
 	if new_path:sub(-1) == "/" then
 		if vim.fn.isdirectory(new_path) == 0 then
-			Utils.mkdir(new_path, nil, vim.schedule_wrap(function(err)
+			Utils.mkdir(new_path, nil, function(err)
 				if err then
 					Snacks.notify.error("Could not create " .. new_path .. "\n" .. err)
 					return
 				end
 				set_picker_cwd(picker, new_path)
 				Snacks.notify.info("Created directory: " .. new_path)
-			end))
+			end)
 		end
 	else
 		-- Create the file asynchronously
 		dir = vim.fs.dirname(new_path)
-		Utils.create_file(new_path, vim.schedule_wrap(function(err)
+		Utils.create_file(new_path, function(err)
 			if err then
 				Snacks.notify(err)
 				return
 			end
 			set_picker_cwd(picker, dir)
-		end))
+		end)
 	end
 end
 
@@ -209,7 +209,7 @@ function M.copy(picker)
 		table.insert(files, item.file)
 	end
 	local dir = picker:cwd()
-	Utils.copy_paths(files, dir, vim.schedule_wrap(function(errors)
+	Utils.copy_paths(files, dir, function(errors)
 		if errors then
 			Snacks.notify.error("Error while copying items:\n" .. table.concat(errors, "\n"))
 		end
@@ -219,7 +219,7 @@ function M.copy(picker)
 		end
 		picker.list:set_selected()
 		picker:find()
-	end))
+	end)
 end
 
 function M.move(picker)
@@ -230,18 +230,16 @@ function M.move(picker)
 	local dir = picker:cwd()
 	Utils.move_paths(files, dir, {
 		notify_lsp_clients = picker.opts.rename.notify_lsp_clients or false,
-		callback = vim.schedule_wrap(function(err, num_moved)
+		callback = function(err)
 			if err then
 				Snacks.notify.error("Error while moving items: \n" .. table.concat(err, "\n"))
 				return
 			end
-			if num_moved then
-				-- might have some items moved even if there were errors
-				Snacks.notify.info("Moved " .. num_moved .. " items")
-				picker.list:set_selected()
-				picker:find()
-			end
-		end)
+			-- might have some items moved even if there were errors
+			Snacks.notify.info("Moved " .. #files - (err and #err or 0) .. " items")
+			picker.list:set_selected()
+			picker:find()
+		end
 	})
 end
 
@@ -252,13 +250,14 @@ function M.delete(picker)
 	local sel = picker:selected({ fallback = true })
 	if #sel == 0 then return end
 	local message = #sel == 1 and vim.fs.joinpath(sel.file) or #sel .. " items"
-	local focus_input = vim.api.nvim_get_current_win() == picker.input.win.win
+	local win = vim.api.nvim_get_current_win()
 	local insert_mode = vim.fn.mode() == "i"
+	local row, col = unpack(vim.api.nvim_win_get_cursor(picker.input.win.win))
 	vim.ui.select(
 		{ 'Yes', 'No' },
 		{ prompt = "Delete " .. message .. "?" },
 		function(confirm)
-			if confirm == "No" then return end
+			if not confirm then return end
 			local num_deleted = 0
 			vim.iter(sel):each(
 				function(item)
@@ -274,9 +273,7 @@ function M.delete(picker)
 				end)
 			Snacks.notify.info("Deleted " .. num_deleted .. " items")
 			picker:find() -- Refresh the picker
-			if focus_input then
-				picker:focus("input")
-			end
+			vim.api.nvim_win_set_cursor(win, { row, col })
 			if insert_mode then
 				vim.cmd("startinsert")
 			end
