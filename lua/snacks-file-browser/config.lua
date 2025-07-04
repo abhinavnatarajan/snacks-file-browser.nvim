@@ -1,7 +1,7 @@
 local default_config = {
 	show_empty = true,
 	hidden = true,
-	ignored = false,
+	ignored = true,
 	follow = false,
 	supports_live = true,
 	rename = {
