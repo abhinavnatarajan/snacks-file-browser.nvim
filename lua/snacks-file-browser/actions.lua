@@ -48,7 +48,9 @@ end
 
 local function edit_path(p)
 	local cb = function()
-		vim.cmd.edit(p)
+		if vim.fn.filereadable(p) then
+			vim.cmd.edit(p)
+		end
 	end
 	if vim.in_fast_event() then
 		cb = vim.schedule_wrap(cb)
@@ -56,29 +58,27 @@ local function edit_path(p)
 	cb()
 end
 
-local function edit_paths(p)
-	if type(p) == "string" then
-		M.edit_path(p)
-	elseif type(p) == "table" then
-		for _, path in ipairs(p) do
-			edit_path(path)
-		end
-	end
+local function edit_paths(paths)
+	local readable_files = vim.iter(paths)
+		:filter(function(path)
+			return vim.fn.filereadable(path) == 1
+		end)
+		:totable()
+	vim.iter(readable_files):map(function(path) edit_path(path) end)
 	return true
+end
+
+local function edit_paths_cb(picker, paths)
+	picker:close()
+	edit_paths(paths)
 end
 
 ---Edit the selected file(s)
 function M.edit(picker)
 	local selected = picker:selected({ fallback = true })
 	if #selected > 0 then
-		local readable_files = vim.iter(selected)
-			:map(function(item) return item.file end)
-			:filter(function(path)
-				return vim.fn.filereadable(path) == 1
-			end)
-			:totable()
-		picker:close()
-		edit_paths(readable_files)
+		local paths = vim.iter(selected):map(function(t) return t.file end):totable()
+		edit_paths_cb(picker, paths)
 		return
 	else
 		Snacks.notify.error("No files selected to edit")
@@ -91,10 +91,17 @@ function M.set_cwd(picker)
 end
 
 function M.confirm(picker, item)
-	local callback = picker.opts.on_confirm or function(path, _picker)
-		_picker:close()
-		edit_path(path)
+	local cb = picker.opts.on_confirm or edit_paths_cb
+	local selected = picker:selected({ fallback = false })
+
+	-- If items are selected
+	if #selected > 0 then
+		local item_paths = vim.iter(selected):map(function(t) return t.file end):totable()
+		cb(picker, item_paths)
+		return
 	end
+
+	-- No items selected, so we create an item
 	-- Case 1: No items in the list or the items do not match the input
 	if not item or item.score == 0 then
 		local new_path = vim.fs.joinpath(picker:cwd(), picker.input:get())
@@ -110,7 +117,7 @@ function M.confirm(picker, item)
 				set_picker_cwd(picker, new_path)
 			end)
 		else
-			callback(new_path, picker)
+			cb(picker, { new_path })
 		end
 		return
 	end
@@ -125,7 +132,7 @@ function M.confirm(picker, item)
 		if stat.type == 'directory' then
 			set_picker_cwd(picker, path)
 		elseif stat.type == "file" then
-			callback(path, picker)
+			cb(picker, { path })
 		end
 	end))
 end
