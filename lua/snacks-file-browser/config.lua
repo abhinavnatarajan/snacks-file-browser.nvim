@@ -19,7 +19,7 @@ local default_config = {
 
 				["<BS>"] = { "backspace", mode = { "n", "i" } },
 				["<M-BS>"] = { "navigate_parent", mode = { "n", "i" } },
-				["<C-d>"] = { "set_cwd", mode = { "i", "n" } },
+				["<C-]>"] = { "set_cwd", mode = { "i", "n" } },
 
 				["<M-y>"] = { "yank", mode = { "n", "i" } },
 				["<M-p>"] = { "copy", mode = { "n", "i" } },
