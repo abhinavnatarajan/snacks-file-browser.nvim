@@ -163,7 +163,18 @@ end
 
 ---Create a new file or directory based on the input in the picker
 function M.create_new(picker)
-	local new_path = vim.fs.joinpath(picker:cwd(), picker.input:get())
+	local input = picker.input:get()
+	if input == "" then
+		-- start a coroutine to get the input and then come back here
+		input = vim.fn.input("Enter name for new file or directory: ")
+		if not input then return end
+	end
+	local new_path = vim.fs.joinpath(picker:cwd(), input)
+
+	if new_path == "" then
+		Snacks.notify.error("No name provided")
+		return
+	end
 
 	if vim.fn.filereadable(new_path) == 1 then
 		Snacks.notify.info("Item already exists")
@@ -234,6 +245,10 @@ function M.move(picker)
 	for _, item in ipairs(picker:selected({ fallback = false })) do
 		table.insert(files, item.file)
 	end
+	if #files == 0 then
+		Snacks.notify.error("No files selected to move")
+		return
+	end
 	local dir = picker:cwd()
 	Utils.move_paths(files, dir, {
 		notify_lsp_clients = picker.opts.rename.notify_lsp_clients or false,
@@ -242,7 +257,7 @@ function M.move(picker)
 				Snacks.notify.error("Error while moving items: \n" .. table.concat(err, "\n"))
 				return
 			end
-			-- might have some items moved even if there were errors
+			-- Might have some items moved even if there were errors
 			Snacks.notify.info("Moved " .. #files - (err and #err or 0) .. " items")
 			picker.list:set_selected()
 			picker:find()
