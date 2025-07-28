@@ -24,6 +24,28 @@ local function set_picker_cwd(picker, new_cwd)
 	picker:find()
 end
 
+local function extract_paths(items)
+	return vim.iter(items):map(function(it) return it.file end):totable()
+end
+
+local function edit_files_cb(picker, paths)
+	picker:close()
+	local os_pathsep = package.config:sub(1, 1)
+	local files = vim.iter(paths)
+		:filter(function(p)
+			return not p:sub(-1):find(os_pathsep)
+		end):totable()
+	local cb = function(path)
+		if vim.in_fast_event() then
+			vim.schedule(function() vim.cmd.edit(path) end)
+		else
+			vim.cmd.edit(path)
+		end
+	end
+	vim.iter(files):map(function(path) cb(path) end)
+end
+
+
 ---Navigate up one directory
 function M.navigate_parent(picker)
 	local cwd = picker:cwd()
@@ -46,66 +68,41 @@ function M.refresh(picker)
 	picker:find()
 end
 
-local function edit_path(p)
-	local cb = function()
-		if vim.fn.filereadable(p) then
-			vim.cmd.edit(p)
-		end
-	end
-	if vim.in_fast_event() then
-		cb = vim.schedule_wrap(cb)
-	end
-	cb()
-end
-
-local function edit_paths(paths)
-	local readable_files = vim.iter(paths)
-		:filter(function(path)
-			return vim.fn.filereadable(path) == 1
-		end)
-		:totable()
-	vim.iter(readable_files):map(function(path) edit_path(path) end)
-	return true
-end
-
-local function edit_paths_cb(picker, paths)
-	picker:close()
-	edit_paths(paths)
-end
-
 ---Edit the selected file(s)
 function M.edit(picker)
 	local selected = picker:selected({ fallback = true })
 	if #selected > 0 then
-		local paths = vim.iter(selected):map(function(t) return t.file end):totable()
-		edit_paths_cb(picker, paths)
+		local paths = extract_paths(selected)
+		edit_files_cb(picker, paths)
 		return
 	else
 		Snacks.notify.error("No files selected to edit")
 	end
 end
 
----Set the cwd of neovim from the picker
+---Set the cwd of neovim from the picker.
 function M.set_cwd(picker)
 	vim.cmd("tcd " .. vim.fn.fnameescape(picker:cwd()))
 end
 
 function M.confirm(picker, item)
-	local cb = picker.opts.on_confirm or edit_paths_cb
+	local cb = picker.opts.on_confirm or edit_files_cb
 	local selected = picker:selected({ fallback = false })
 
 	-- If items are selected
 	if #selected > 0 then
-		local item_paths = vim.iter(selected):map(function(t) return t.file end):totable()
-		cb(picker, item_paths)
+		local paths = extract_paths(selected)
+		cb(picker, paths)
 		return
 	end
 
-	-- No items selected, so we create an item
-	-- Case 1: No items in the list or the items do not match the input
+	-- No items selected, so we create an item.
+	-- Case 1: No items in the list or the items do not match the input.
 	if not item or item.score == 0 then
-		local new_path = vim.fs.joinpath(picker:cwd(), picker.input:get())
-		-- if the path is a directory we create it and navigate into it
+		local input = picker.input:get()
+		if input == "" then return end
+		local new_path = vim.fs.joinpath(picker:cwd(), input)
+		-- If the path is a directory we create it and navigate into it.
 		local os_pathsep = package.config:sub(1, 1)
 		if new_path:sub(-1):find(os_pathsep) then
 			Utils.mkdir(new_path, nil, function(err)
