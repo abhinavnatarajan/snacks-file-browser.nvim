@@ -1,15 +1,32 @@
+local Snacks = require('snacks')
 local Config = require('snacks-file-browser.config')
 local Actions = require('snacks-file-browser.actions')
 
 local M = {}
 
----Needs to be called before using the file browser
-function M.setup(config)
-	Config.set(config or {})
+
+---@param bufnr number Buffer number to save
+---@param path string Absolute filename to save the buffer to
+local function save_as(bufnr, paths)
+	if #paths > 1 then
+		vim.notify("Multiple paths selected.", vim.log.levels.ERROR)
+		return
+	end
+	local path = paths[1]
+	-- if the buffer name is empty then we can just save it
+	-- using the `:w ++p {path}` command
+	if vim.api.nvim_buf_get_name(bufnr) == "" then
+		vim.api.nvim_buf_call(bufnr, function() vim.cmd("silent w! ++p " .. path) end)
+		return
+	end
+	-- if the buffer has a non-empty name `oldpath`,
+	-- then `:w ++ {path}` will not change the buffer name to `path`
+	-- If `cpoptions` contains `A`, the buffer will be marked as not modified
+	-- but in reality it does not reflect the state of `oldpath`.
+	-- This is misleading, so we instead use "saveas"
+	vim.api.nvim_buf_call(bufnr, function() vim.cmd("silent saveas ++p" .. path) end)
 end
 
---- Open the file browser picker with specified actions and keys
--- -@param opts? table  -- Optional configuration table
 function M.open(opts)
 	opts = vim.tbl_deep_extend('force', Config.get(), opts or {})
 	local os_pathsep = package.config:sub(1, 1)
@@ -66,10 +83,73 @@ function M.open(opts)
 	})
 end
 
-setmetatable(M, {
-	__call = function(table, opts)
-		table.open(opts)
-	end,
-})
+function M.save_buffer_as(opts)
+	local bufnr = vim.api.nvim_get_current_buf()
+	opts = vim.tbl_deep_extend('force', opts or {}, {
+		on_confirm = function(picker, paths)
+			picker:close()
+			save_as(bufnr, paths)
+		end
+	})
+	M.open(opts)
+end
+
+function M.save_buffer(opts)
+	if vim.bo.buftype == "nofile" or vim.bo.buftype == "nowrite" then
+		Snacks.notify("Cannot save this buffer", vim.log.levels.WARN)
+		return
+	end
+	local name = vim.api.nvim_buf_get_name(0)
+	if name == "" then
+		local bufnr = vim.api.nvim_get_current_buf()
+		opts = vim.tbl_deep_extend('force', opts or {}, {
+			on_confirm = function(picker, paths)
+				picker:close()
+				save_as(bufnr, paths)
+			end
+		})
+		M.open(opts)
+	else
+		-- buffer has a name but the parent directory
+		-- may not exist since buffers can be renamed arbitrarily
+		-- so we need ++p to create parent directories
+		vim.cmd("silent w! ++p")
+	end
+end
+
+---Needs to be called before using the file browser
+function M.setup(config)
+	Config.set(config or {})
+	vim.api.nvim_create_user_command(
+		'SnacksFileBrowser',
+		function(opts)
+			M.open(opts)
+		end,
+		{
+			nargs = '*',
+			desc = "Open file browser",
+		}
+	)
+	vim.api.nvim_create_user_command(
+		'SnacksFileBrowserSave',
+		function(opts)
+			M.save_buffer(opts)
+		end,
+		{
+			nargs = '*',
+			desc = "Save current buffer...",
+		}
+	)
+	vim.api.nvim_create_user_command(
+		'SnacksFileBrowserSaveAs',
+		function(opts)
+			M.save_buffer_as(opts)
+		end,
+		{
+			nargs = '*',
+			desc = "Save current buffer as...",
+		}
+	)
+end
 
 return M
