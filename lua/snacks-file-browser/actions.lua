@@ -87,14 +87,6 @@ end
 
 function M.confirm(picker, item)
 	local cb = picker.opts.on_confirm or edit_files_cb
-	local selected = picker:selected({ fallback = false })
-
-	-- If items are selected
-	if #selected > 0 then
-		local paths = extract_paths(selected)
-		cb(picker, paths)
-		return
-	end
 
 	-- No items selected, so we create an item.
 	-- Case 1: No items in the list or the items do not match the input.
@@ -160,47 +152,53 @@ end
 
 ---Create a new file or directory based on the input in the picker
 function M.create_new(picker)
-	local input = picker.input:get()
-	if input == "" then
-		-- start a coroutine to get the input and then come back here
-		input = vim.fn.input("Enter name for new file or directory: ")
-		if not input then return end
-	end
-	local new_path = vim.fs.joinpath(picker:cwd(), input)
+	local function create_new(new_path)
+		if not picker or picker.is_closed then return end
+		if vim.fn.filereadable(new_path) == 1 then
+			Snacks.notify.info("Item already exists")
+			return
+		end
 
-	if new_path == "" then
-		Snacks.notify.error("No name provided")
-		return
-	end
-
-	if vim.fn.filereadable(new_path) == 1 then
-		Snacks.notify.info("Item already exists")
-		return
-	end
-
-	-- if the path is a directory we create it and navigate into it
-	local dir = ""
-	if new_path:sub(-1) == "/" then
-		if vim.fn.isdirectory(new_path) == 0 then
-			Utils.mkdir(new_path, nil, function(err)
+		-- if the path is a directory we create it and navigate into it
+		local dir = ""
+		if new_path:sub(-1) == "/" then
+			if vim.fn.isdirectory(new_path) == 0 then
+				Utils.mkdir(new_path, nil, function(err)
+					if err then
+						Snacks.notify.error("Could not create " .. new_path .. "\n" .. err)
+						return
+					end
+					set_picker_cwd(picker, new_path)
+					Snacks.notify.info("Created directory: " .. new_path)
+				end)
+			end
+		else
+			-- Create the file asynchronously
+			dir = vim.fs.dirname(new_path)
+			Utils.create_file(new_path, function(err)
 				if err then
-					Snacks.notify.error("Could not create " .. new_path .. "\n" .. err)
+					Snacks.notify(err)
 					return
 				end
-				set_picker_cwd(picker, new_path)
-				Snacks.notify.info("Created directory: " .. new_path)
+				set_picker_cwd(picker, dir)
 			end)
 		end
-	else
-		-- Create the file asynchronously
-		dir = vim.fs.dirname(new_path)
-		Utils.create_file(new_path, function(err)
-			if err then
-				Snacks.notify(err)
-				return
+	end
+	local cwd = picker:cwd()
+	local picker_input = picker.input:get()
+	local co = coroutine.running()
+	if picker_input == "" then
+		vim.ui.input(
+			{ prompt = "Enter name for new file or directory: " },
+			function(ui_input)
+				if not ui_input then
+					return
+				end
+				create_new(vim.fs.joinpath(cwd, ui_input))
 			end
-			set_picker_cwd(picker, dir)
-		end)
+		)
+	else
+		create_new(vim.fs.joinpath(cwd, picker_input))
 	end
 end
 
