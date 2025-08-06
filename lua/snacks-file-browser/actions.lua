@@ -87,6 +87,12 @@ end
 
 function M.confirm(picker, item)
 	local cb = picker.opts.on_confirm or edit_files_cb
+	local selected = picker:selected({ fallback = true })
+	if #selected == 1 then
+		local paths = extract_paths(selected)
+		edit_files_cb(picker, paths)
+		return
+	end
 
 	-- No items selected, so we create an item.
 	-- Case 1: No items in the list or the items do not match the input.

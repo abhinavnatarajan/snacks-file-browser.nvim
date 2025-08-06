@@ -13,13 +13,14 @@ Use your favourite plugin manager to install:
 
 ```lua
 -- lazy.nvim
-{
+return {
     'abhinavnatarajan/snacks-file-browser.nvim',
     dependencies = { 'folke/snacks.nvim' },
     opts = {
     -- optional config
     }
 }
+
 ```
 
 ## Usage
@@ -106,31 +107,32 @@ require('snacks-file-browser').setup({
 
 ### Input Window
 
-| Keybinding | Action |
-| --- | --- |
-| `<M-n>` | Create a new file or directory |
-| `<M-e>` or `<CR>` | Edit the selected file(s) |
-| `<BS>` | Navigate up one directory if the input is empty, otherwise delete a character |
-| `<M-BS>` | Navigate up one directory |
-| `<C-]>` | Set the current working directory of neovim to the picker's directory |
-| `<M-y>` | Yank the selected file(s) to the clipboard |
-| `<M-p>` | Copy the selected file(s) to the current directory |
-| `<M-m>` | Move the selected file(s) to the current directory |
-| `<M-d>` | Delete the selected file(s) |
-| `<M-r>` | Rename the selected file |
-| `<F5>` | Refresh the file browser |
+| Keybinding | Action                                                                        |
+| ---        | ---                                                                           |
+| `<CR>`     | Pass the selected item to a callback (by default `vim.cmd.edit`)              |
+| `<M-n>`    | Create a new file or directory                                                |
+| `<M-e>`    | Edit the selected file(s) (will skip directories)                             |
+| `<BS>`     | Navigate up one directory if the input is empty, otherwise delete a character |
+| `<M-BS>`   | Navigate up one directory                                                     |
+| `<C-]>`    | Set the current working directory of neovim to the picker's directory         |
+| `<M-y>`    | Yank the selected file(s) to the clipboard                                    |
+| `<M-p>`    | Copy the selected file(s) to the current directory                            |
+| `<M-m>`    | Move the selected file(s) to the current directory                            |
+| `<M-d>`    | Delete the selected file(s)                                                   |
+| `<M-r>`    | Rename the selected file                                                      |
+| `<F5>`     | Refresh the file browser                                                      |
 
 ### List Window
 
-| Keybinding | Action |
-| --- | --- |
-| `<BS>` | Navigate up one directory |
-| `y` | Yank the selected file(s) to the clipboard |
-| `p` | Copy the selected file(s) to the current directory |
-| `m` | Move the selected file(s) to the current directory |
-| `r` | Rename the selected file |
-| `d` | Delete the selected file(s) |
-| `<F5>` | Refresh the file browser |
+| Keybinding | Action                                             |
+| ---        | ---                                                |
+| `<BS>`     | Navigate up one directory                          |
+| `y`        | Yank the selected file(s) to the clipboard         |
+| `p`        | Copy the selected file(s) to the current directory |
+| `m`        | Move the selected file(s) to the current directory |
+| `r`        | Rename the selected file                           |
+| `d`        | Delete the selected file(s)                        |
+| `<F5>`     | Refresh the file browser                           |
 
 ## Available Actions
 
@@ -140,7 +142,7 @@ require('snacks-file-browser').setup({
 * `edit`: Edit the selected file(s).
 * `set_cwd`: Set the cwd of neovim from the picker.
 * `confirm`: Confirm the selection and pass them into a callback (default `vim.cmd.edit`).
-    * If items are selected, pass the picker and the items into a user-supplied callback.
+    * If a single item is selected, pass the picker and the item into a user-supplied callback.
     * If there is no selection, no highlighted item, and no item matches the input:
         * If the input ends with a path separator, create a new directory and navigate into it.
         * Otherwise, pass the input into the callback (default `vim.cmd.edit`).
