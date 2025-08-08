@@ -15,7 +15,7 @@ local default_config = {
 		input = {
 			keys = {
 				["<M-n>"] = { "create_new", mode = { "n", "i" } },
-				["<M-e>"] = { "edit", mode = { "n", "i" } },
+				["<M-e>"] = { "multi_confirm", mode = { "n", "i" } },
 
 				["<BS>"] = { "backspace", mode = { "n", "i" } },
 				["<M-BS>"] = { "navigate_parent", mode = { "n", "i" } },

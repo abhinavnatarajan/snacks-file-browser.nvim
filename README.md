@@ -107,32 +107,32 @@ require('snacks-file-browser').setup({
 
 ### Input Window
 
-| Keybinding | Action                                                                        |
-| ---        | ---                                                                           |
-| `<CR>`     | Pass the selected item to a callback (by default `vim.cmd.edit`)              |
-| `<M-n>`    | Create a new file or directory                                                |
-| `<M-e>`    | Edit the selected file(s) (will skip directories)                             |
-| `<BS>`     | Navigate up one directory if the input is empty, otherwise delete a character |
-| `<M-BS>`   | Navigate up one directory                                                     |
-| `<C-]>`    | Set the current working directory of neovim to the picker's directory         |
-| `<M-y>`    | Yank the selected file(s) to the clipboard                                    |
-| `<M-p>`    | Copy the selected file(s) to the current directory                            |
-| `<M-m>`    | Move the selected file(s) to the current directory                            |
-| `<M-d>`    | Delete the selected file(s)                                                   |
-| `<M-r>`    | Rename the selected file                                                      |
-| `<F5>`     | Refresh the file browser                                                      |
+| Keybinding | Action                                                                         |
+| ---        | ---                                                                            |
+| `<CR>`     | Pass the selected item to a callback (by default `vim.cmd.edit`).              |
+| `<M-n>`    | Create a new file or directory.                                                |
+| `<M-e>`    | Edit the selected file(s) (will skip directories).                             |
+| `<BS>`     | Navigate up one directory if the input is empty, otherwise delete a character. |
+| `<M-BS>`   | Navigate up one directory.                                                     |
+| `<C-]>`    | Set the current working directory of neovim to the picker's directory.         |
+| `<M-y>`    | Yank the selected file(s) to the clipboard.                                    |
+| `<M-p>`    | Copy the selected file(s) to the current directory.                            |
+| `<M-m>`    | Move the selected file(s) to the current directory.                            |
+| `<M-d>`    | Delete the selected file(s).                                                   |
+| `<M-r>`    | Rename the selected file.                                                      |
+| `<F5>`     | Refresh the file browser.                                                      |
 
 ### List Window
 
-| Keybinding | Action                                             |
-| ---        | ---                                                |
-| `<BS>`     | Navigate up one directory                          |
-| `y`        | Yank the selected file(s) to the clipboard         |
-| `p`        | Copy the selected file(s) to the current directory |
-| `m`        | Move the selected file(s) to the current directory |
-| `r`        | Rename the selected file                           |
-| `d`        | Delete the selected file(s)                        |
-| `<F5>`     | Refresh the file browser                           |
+| Keybinding | Action                                              |
+| ---        | ---                                                 |
+| `<BS>`     | Navigate up one directory.                          |
+| `y`        | Yank the selected file(s) to the clipboard.         |
+| `p`        | Copy the selected file(s) to the current directory. |
+| `m`        | Move the selected file(s) to the current directory. |
+| `r`        | Rename the selected file.                           |
+| `d`        | Delete the selected file(s).                        |
+| `<F5>`     | Refresh the file browser.                           |
 
 ## Available Actions
 
@@ -141,13 +141,16 @@ require('snacks-file-browser').setup({
 * `refresh`: Rerun the finder.
 * `edit`: Edit the selected file(s).
 * `set_cwd`: Set the cwd of neovim from the picker.
-* `confirm`: Confirm the selection and pass them into a callback (default `vim.cmd.edit`).
-    * If a single item is selected, pass the picker and the item into a user-supplied callback.
-    * If there is no selection, no highlighted item, and no item matches the input:
+* `confirm`: Pass the matched item in the picker list to a user-supplied callback (default `vim.cmd.edit`).
+    * If there is no item matching the input and no highlighted item in the picker:
         * If the input ends with a path separator, create a new directory and navigate into it.
-        * Otherwise, pass the input into the callback (default `vim.cmd.edit`).
+        * Otherwise, pass the input to the callback.
     * If a directory is highlighted in the picker, navigate into it.
-    * If a file is highlighted in the picker, pass it the callback.
+    * If a file is matched/highlighted in the picker, pass it to the callback.
+    Note that the `confirm` action does not deal with selected items.
+    This is to allow one to descend into directories while retaining currently selected items.
+* `multi_confirm`: Pass the picker and the paths of all selected items to a user-supplied callback.
+By default, the callback closes the picker and calls `vim.cmd.edit` on all the selected items.
 * `rename`: Rename the currently selected file or directory.
 * `create_new`: Create a new file or directory based on the input in the picker.
 * `yank`: Yank the selected file(s) to the clipboard.

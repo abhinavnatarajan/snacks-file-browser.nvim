@@ -68,12 +68,13 @@ function M.refresh(picker)
 	picker:find()
 end
 
----Edit the selected file(s)
-function M.edit(picker)
+---Pass the selected file(s) to a callback function.
+function M.multi_confirm(picker)
+	local cb = picker.opts.on_confirm or edit_files_cb
 	local selected = picker:selected({ fallback = true })
 	if #selected > 0 then
 		local paths = extract_paths(selected)
-		edit_files_cb(picker, paths)
+		cb(picker, paths)
 		return
 	else
 		Snacks.notify.error("No files selected to edit")
@@ -85,14 +86,9 @@ function M.set_cwd(picker)
 	vim.cmd("tcd " .. vim.fn.fnameescape(picker:cwd()))
 end
 
+---Pass the highlighted or matched item to a callback function.
 function M.confirm(picker, item)
-	local cb = picker.opts.on_confirm or edit_files_cb
-	local selected = picker:selected({ fallback = true })
-	if #selected == 1 then
-		local paths = extract_paths(selected)
-		edit_files_cb(picker, paths)
-		return
-	end
+	local cb = picker.opts.on_confirm or vim.cmd.edit
 
 	-- No items selected, so we create an item.
 	-- Case 1: No items in the list or the items do not match the input.
@@ -112,7 +108,8 @@ function M.confirm(picker, item)
 				set_picker_cwd(picker, new_path)
 			end)
 		else
-			cb(picker, { new_path })
+			picker:close()
+			cb(new_path)
 		end
 		return
 	end
@@ -127,7 +124,8 @@ function M.confirm(picker, item)
 		if stat.type == 'directory' then
 			set_picker_cwd(picker, path)
 		elseif stat.type == "file" then
-			cb(picker, { path })
+			picker:close()
+			cb(path)
 		end
 	end))
 end
