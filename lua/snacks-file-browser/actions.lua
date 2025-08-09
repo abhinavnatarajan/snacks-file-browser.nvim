@@ -138,6 +138,9 @@ function M.rename(picker, selected)
 	local old_path = vim.fs.normalize(selected.file)
 
 	local function rename_callback(new_name)
+		if not new_name or new_name == "" then
+			return
+		end
 		local new_path = vim.fs.abspath(vim.fs.normalize(vim.fs.joinpath(picker:cwd(), new_name)))
 		Utils.rename_path(old_path, new_path,
 			notify_lsp_clients,
@@ -163,9 +166,9 @@ function M.create_new(picker)
 			return
 		end
 
-		-- if the path is a directory we create it and navigate into it
+		-- If the path is a directory we create it and navigate into it.
 		local dir = ""
-		if new_path:sub(-1) == "/" then
+		if new_path:sub(-1) == package.config:sub(1, 1) then
 			if vim.fn.isdirectory(new_path) == 0 then
 				Utils.mkdir(new_path, nil, function(err)
 					if err then
@@ -190,7 +193,6 @@ function M.create_new(picker)
 	end
 	local cwd = picker:cwd()
 	local picker_input = picker.input:get()
-	local co = coroutine.running()
 	if picker_input == "" then
 		vim.ui.input(
 			{ prompt = "Enter name for new file or directory: " },
