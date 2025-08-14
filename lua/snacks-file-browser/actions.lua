@@ -88,7 +88,7 @@ end
 
 ---Pass the highlighted or matched item to a callback function.
 function M.confirm(picker, item)
-	local cb = picker.opts.on_confirm or vim.cmd.edit
+	local cb = picker.opts.on_confirm or edit_files_cb
 
 	-- No items selected, so we create an item.
 	-- Case 1: No items in the list or the items do not match the input.
@@ -108,8 +108,7 @@ function M.confirm(picker, item)
 				set_picker_cwd(picker, new_path)
 			end)
 		else
-			picker:close()
-			cb(new_path)
+			cb(picker, { new_path })
 		end
 		return
 	end
@@ -124,8 +123,7 @@ function M.confirm(picker, item)
 		if stat.type == 'directory' then
 			set_picker_cwd(picker, path)
 		elseif stat.type == "file" then
-			picker:close()
-			cb(path)
+			cb(picker, { path })
 		end
 	end))
 end
