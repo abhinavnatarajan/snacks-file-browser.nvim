@@ -3,14 +3,14 @@ local Utils = require('snacks-file-browser.utils')
 local uv = vim.uv
 local M = {}
 
----Update the title of the picker, truncating if required
+---Update the title of the picker, truncating if required.
 local function update_title(picker, title)
 	local len = picker.input.win:size().width - 4
 	picker.title = title:len() > len and "…" .. title:sub(-len + 1) or title
 	picker:update_titles()
 end
 
---- Set the picker current working directory (cwd) and reload the picker
+--- Set the picker current working directory (cwd) and reload the picker.
 --- This function is used to set the new working directory and refresh the picker.
 ---@param picker any
 ---@param new_cwd string
@@ -29,7 +29,9 @@ local function extract_paths(items)
 end
 
 local function edit_files_cb(picker, paths)
-	picker:close()
+	picker:norm(function()
+		picker:close()
+	end)
 	local os_pathsep = package.config:sub(1, 1)
 	local files = vim.iter(paths)
 		:filter(function(p)
@@ -140,17 +142,15 @@ function M.rename(picker, selected)
 			return
 		end
 		local new_path = vim.fs.abspath(vim.fs.normalize(vim.fs.joinpath(picker:cwd(), new_name)))
-		Utils.rename_path(old_path, new_path,
-			notify_lsp_clients,
-			vim.schedule_wrap(function(err)
-				if err then
-					Snacks.notify.error("Rename failed: " .. err)
-					return
-				end
-				Snacks.notify.info("Renamed " .. old_file_name .. " to " .. new_name)
-				picker:find()
-			end)
-		)
+		Utils.rename_path(old_path, new_path, notify_lsp_clients)
+		vim.schedule_wrap(function(err)
+			if err then
+				Snacks.notify.error("Rename failed: " .. err)
+				return
+			end
+			Snacks.notify.info("Renamed " .. old_file_name .. " to " .. new_name)
+			picker:find()
+		end)
 	end
 	vim.ui.input({ prompt = "Enter new name: " }, rename_callback)
 end
@@ -159,34 +159,35 @@ end
 function M.create_new(picker)
 	local function create_new(new_path)
 		if not picker or picker.is_closed then return end
-		if vim.fn.filereadable(new_path) == 1 then
-			Snacks.notify.info("Item already exists")
-			return
-		end
 
 		-- If the path is a directory we create it and navigate into it.
 		local dir = ""
 		if new_path:sub(-1) == package.config:sub(1, 1) then
-			if vim.fn.isdirectory(new_path) == 0 then
-				Utils.mkdir(new_path, nil, function(err)
-					if err then
-						Snacks.notify.error("Could not create " .. new_path .. "\n" .. err)
-						return
-					end
-					set_picker_cwd(picker, new_path)
-					Snacks.notify.info("Created directory: " .. new_path)
-				end)
+			if vim.fn.isdirectory(new_path) == 1 then
+				Snacks.notify.info("Directory already exists")
+				return
 			end
-		else
-			-- Create the file asynchronously
-			dir = vim.fs.dirname(new_path)
-			Utils.create_file(new_path, function(err)
+			Utils.mkdir(new_path, nil, function(err)
 				if err then
-					Snacks.notify(err)
+					Snacks.notify.error("Could not create " .. new_path .. "\n" .. err)
 					return
 				end
-				set_picker_cwd(picker, dir)
+				set_picker_cwd(picker, new_path)
+				Snacks.notify.info("Created directory: " .. new_path)
 			end)
+		else
+			if vim.fn.filereadable(new_path) == 1 then
+				Snacks.notify.info("Item already exists")
+				return
+			end
+			-- Create the file.
+			dir = vim.fs.dirname(new_path)
+			local create_file_result, error = Utils.create_file(new_path)
+			if not create_file_result then
+				Snacks.notify(("Could not create file due to %s"):format(error))
+				return
+			end
+			set_picker_cwd(picker, dir)
 		end
 	end
 	local cwd = picker:cwd()
@@ -226,8 +227,8 @@ function M.copy(picker)
 		table.insert(files, item.file)
 	end
 	local dir = picker:cwd()
-	Utils.copy_paths(files, dir, function(errors)
-		if errors then
+	Utils.copy_paths(files, dir, function(success, errors)
+		if not success then
 			Snacks.notify.error("Error while copying items:\n" .. table.concat(errors, "\n"))
 		end
 		local copied_count = #files - (errors and #errors or 0)
@@ -244,15 +245,11 @@ function M.move(picker)
 	for _, item in ipairs(picker:selected({ fallback = false })) do
 		table.insert(files, item.file)
 	end
-	if #files == 0 then
-		Snacks.notify.error("No files selected to move")
-		return
-	end
 	local dir = picker:cwd()
 	Utils.move_paths(files, dir, {
 		notify_lsp_clients = picker.opts.rename.notify_lsp_clients or false,
-		callback = function(err)
-			if err then
+		callback = function(success, err)
+			if not success then
 				Snacks.notify.error("Error while moving items: \n" .. table.concat(err, "\n"))
 				return
 			end

@@ -5,8 +5,8 @@ local Actions = require('snacks-file-browser.actions')
 local M = {}
 
 
----@param bufnr number Buffer number to save
----@param path string Absolute filename to save the buffer to
+---@param bufnr number Buffer number to save.
+---@param paths string Absolute filename to save the buffer to.
 local function save_as(bufnr, paths)
 	if #paths > 1 then
 		vim.notify("Multiple paths selected.", vim.log.levels.ERROR)
