@@ -37,14 +37,11 @@ local function edit_files_cb(picker, paths)
 		:filter(function(p)
 			return not p:sub(-1):find(os_pathsep)
 		end):totable()
-	local cb = function(path)
-		if vim.in_fast_event() then
-			vim.schedule(function() vim.cmd.edit(path) end)
-		else
+	vim.iter(files):map(function(path)
+		vim.schedule(function()
 			vim.cmd.edit(path)
-		end
-	end
-	vim.iter(files):map(function(path) cb(path) end)
+		end)
+	end)
 end
 
 

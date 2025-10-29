@@ -44,35 +44,30 @@ function M.open(opts)
 		on_confirm = opts.on_confirm,
 		rename = opts.rename,
 		finder = function(_opts, ctx)
-			local args = {
+			_opts.args = {
 				"--follow",
 				"--max-depth=1",
 				"--color=never",
 				"--strip-cwd-prefix"
 			}
 			if _opts.hidden then
-				vim.list_extend(args, { "--hidden" })
+				vim.list_extend(_opts.args, { "--hidden" })
 			end
 			if _opts.ignored then
-				vim.list_extend(args, { "--no-ignore" })
+				vim.list_extend(_opts.args, { "--no-ignore" })
 			end
 			if _opts.follow then
-				vim.list_extend(args, { "--follow" })
+				vim.list_extend(_opts.args, { "--follow" })
 			end
-			return require('snacks.picker.source.proc').proc({
-				_opts,
-				{
-					cmd = "fd",
-					args = args,
-					transform = function(item, _ctx)
-						-- fdfind appends a "/" to the end of a file path if it is a directory
-						if item.text:sub(-1) == os_pathsep then
-							item.dir = true
-						end
-						item.file = vim.fs.normalize(vim.fs.abspath(vim.fs.joinpath(_ctx.picker:cwd(), item.text)))
-					end,
-				}
-			}, ctx)
+			_opts.cmd = "fd"
+			_opts.transform = function(item, _ctx)
+				-- fdfind appends a "/" to the end of a file path if it is a directory
+				if item.text:sub(-1) == os_pathsep then
+					item.dir = true
+				end
+				item.file = vim.fs.normalize(vim.fs.abspath(vim.fs.joinpath(_ctx.picker:cwd(), item.text)))
+			end
+			return require('snacks.picker.source.proc').proc(_opts, ctx)
 		end,
 		format = 'file',
 		on_show = function(picker)
