@@ -98,7 +98,7 @@ function M.confirm(picker, item)
 		-- If the path is a directory we create it and navigate into it.
 		local os_pathsep = package.config:sub(1, 1)
 		if new_path:sub(-1):find(os_pathsep) then
-			Utils.mkdir(new_path, nil, function(err)
+			Utils.mkdir_async(new_path, nil, function(err)
 				if err then
 					Snacks.notify.error("Could not create directory " .. new_path)
 					return
