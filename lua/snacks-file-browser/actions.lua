@@ -265,9 +265,9 @@ function M.delete(picker)
 	local sel = picker:selected({ fallback = true })
 	if #sel == 0 then return end
 	local message = #sel == 1 and vim.fs.joinpath(sel.file) or #sel .. " items"
-	local win = vim.api.nvim_get_current_win()
 	local insert_mode = vim.fn.mode() == "i"
-	local row, col = unpack(vim.api.nvim_win_get_cursor(picker.input.win.win))
+	local _, col = unpack(vim.api.nvim_win_get_cursor(picker.input.win.win))
+	local is_end_of_line = col >= #picker.input:get()
 	vim.ui.select(
 		{ 'Yes', 'No' },
 		{ prompt = "Delete " .. message .. "?" },
@@ -288,9 +288,12 @@ function M.delete(picker)
 				end)
 			Snacks.notify.info("Deleted " .. num_deleted .. " items")
 			picker:find() -- Refresh the picker
-			vim.api.nvim_win_set_cursor(win, { row, col })
 			if insert_mode then
-				vim.cmd("startinsert")
+				if is_end_of_line then
+					vim.cmd("startinsert!")
+				else
+					vim.cmd("startinsert")
+				end
 			end
 		end)
 end

@@ -1,1 +1,0 @@
-actions for create, move and copy have new error types
