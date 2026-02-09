@@ -26,6 +26,7 @@ local default_config = {
 				["<M-m>"] = { "move", mode = { "n", "i" } },
 				["<M-d>"] = { "delete", mode = { "n", "i" } },
 				["<M-r>"] = { "rename", mode = { "n", "i" } },
+				["<M-o>"] = { "open_system", mode = { "n", "i" } },
 
 				["<F5>"] = { "refresh", mode = { "n", "i" } },
 			},
@@ -38,6 +39,7 @@ local default_config = {
 				["m"] = { "move", mode = { "n" } },
 				["r"] = { "rename", mode = { "n" } },
 				["d"] = { "delete", mode = { "n", "x" } },
+				["o"] = { "open_system", mode = { "n", "x" } },
 				["<F5>"] = { "refresh", mode = { "n" } },
 			}
 		}

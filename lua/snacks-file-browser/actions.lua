@@ -85,6 +85,19 @@ function M.set_cwd(picker)
 	vim.cmd("tcd " .. vim.fn.fnameescape(picker:cwd()))
 end
 
+---Open selected items with xdg-open
+function M.open_system(picker)
+	local selected = picker:selected({ fallback = true })
+	if #selected > 0 then
+		vim.iter(selected):each(
+			function(it)
+				vim.system({ 'open', it.file }, { detach = true })
+			end)
+	else
+		require("snacks").notify.error("No items selected")
+	end
+end
+
 ---Pass the highlighted or matched item to a callback function.
 function M.confirm(picker, item)
 	local cb = picker.opts.on_confirm or edit_files_cb

@@ -120,26 +120,28 @@ require('snacks-file-browser').setup({
 | `<M-m>`    | Move the selected file(s) to the current directory.                            |
 | `<M-d>`    | Delete the selected file(s).                                                   |
 | `<M-r>`    | Rename the selected file.                                                      |
+| `<M-o>`        | Open the selected item(s) with the system's default application. |
 | `<F5>`     | Refresh the file browser.                                                      |
 
 ### List Window
 
-| Keybinding | Action                                              |
-| ---        | ---                                                 |
-| `<BS>`     | Navigate up one directory.                          |
-| `y`        | Yank the selected file(s) to the clipboard.         |
-| `p`        | Copy the selected file(s) to the current directory. |
-| `m`        | Move the selected file(s) to the current directory. |
-| `r`        | Rename the selected file.                           |
-| `d`        | Delete the selected file(s).                        |
-| `<F5>`     | Refresh the file browser.                           |
+| Keybinding | Action                                                           |
+| ---        | ---                                                              |
+| `<BS>`     | Navigate up one directory.                                       |
+| `y`        | Yank the selected file(s) to the clipboard.                      |
+| `p`        | Copy the selected file(s) to the current directory.              |
+| `m`        | Move the selected file(s) to the current directory.              |
+| `r`        | Rename the selected file.                                        |
+| `d`        | Delete the selected file(s).                                     |
+| `o`        | Open the selected item(s) with the system's default application. |
+| `<F5>`     | Refresh the file browser.                                        |
 
 ## Available Actions
 
 * `navigate_parent`: Navigate up one directory.
 * `backspace`: If the input is empty, navigate up one directory. Otherwise, delete a character.
 * `refresh`: Rerun the finder.
-* `edit`: Edit the selected file(s).
+* `edit`: Edit the selected item(s).
 * `set_cwd`: Set the cwd of neovim from the picker.
 * `confirm`: Pass the matched item in the picker list to a user-supplied callback (default `vim.cmd.edit`).
     * If there is no item matching the input and no highlighted item in the picker:
@@ -153,7 +155,8 @@ require('snacks-file-browser').setup({
 By default, the callback closes the picker and calls `vim.cmd.edit` on all the selected items.
 * `rename`: Rename the currently selected file or directory.
 * `create_new`: Create a new file or directory based on the input in the picker.
-* `yank`: Yank the selected file(s) to the clipboard.
-* `copy`: Copy the selected file(s) to the current directory.
-* `move`: Move the selected file(s) to the current directory.
-* `delete`: Delete the selected file(s).
+* `yank`: Yank the selected item(s) to the clipboard.
+* `copy`: Copy the selected item(s) to the current directory.
+* `move`: Move the selected item(s) to the current directory.
+* `delete`: Delete the selected item(s).
+* `open_system`: Open the selected item(s) with the system's default application.
