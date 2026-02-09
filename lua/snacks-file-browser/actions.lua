@@ -86,13 +86,16 @@ function M.set_cwd(picker)
 end
 
 ---Open selected items with xdg-open
-function M.open_system(picker)
+function M.open_system(picker, item)
 	local selected = picker:selected({ fallback = true })
 	if #selected > 0 then
 		vim.iter(selected):each(
 			function(it)
 				vim.system({ 'open', it.file }, { detach = true })
 			end)
+	elseif item and item.score > 0 then
+		-- Have a highlighted item that is not selected, so we open that.
+		vim.system({ 'open', item.file }, { detach = true })
 	else
 		require("snacks").notify.error("No items selected")
 	end
