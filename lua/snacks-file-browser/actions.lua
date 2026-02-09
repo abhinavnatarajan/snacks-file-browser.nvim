@@ -152,8 +152,8 @@ function M.rename(picker, selected)
 			return
 		end
 		local new_path = vim.fs.abspath(vim.fs.normalize(vim.fs.joinpath(picker:cwd(), new_name)))
-		Utils.rename_path(old_path, new_path, notify_lsp_clients)
-		vim.schedule_wrap(function(err)
+		local _, err, _ = Utils.rename_path(old_path, new_path, notify_lsp_clients)
+		vim.schedule(function()
 			if err then
 				Snacks.notify.error("Rename failed: " .. err)
 				return
