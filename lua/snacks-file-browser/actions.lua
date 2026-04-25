@@ -146,7 +146,7 @@ end
 ---Rename the currently selected file or directory
 function M.rename(picker, selected)
 	if not selected then return end
-	local notify_lsp_clients = picker.opts.rename.notify_lsp_clients
+	local notify_lsp_clients = picker.opts.notify_lsp_clients_on_rename
 	local old_file_name = selected.text
 	local old_path = vim.fs.normalize(selected.file)
 
@@ -260,7 +260,7 @@ function M.move(picker)
 	end
 	local dir = picker:cwd()
 	Utils.move_paths(files, dir, {
-		notify_lsp_clients = picker.opts.rename.notify_lsp_clients or false,
+		notify_lsp_clients = picker.opts.notify_lsp_clients_on_rename or false,
 		callback = function(success, err)
 			if not success then
 				Snacks.notify.error("Error while moving items: \n" .. table.concat(err, "\n"))
