@@ -1,6 +1,13 @@
 local M = {}
 local uv = vim.uv
 
+---Update the title of the picker, truncating if required.
+function M.update_title(picker, title)
+	local len = picker.input.win:size().width - 4
+	picker.title = title:len() > len and "…" .. title:sub(-len + 1) or title
+	picker:update_titles()
+end
+
 ---@async
 ---Recursively creates an absolute directory and all its parent directories asynchronously.
 ---(Implemented iteratively, assumes path is absolute if not nil/empty)

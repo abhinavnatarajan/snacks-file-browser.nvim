@@ -3,13 +3,6 @@ local Utils = require('snacks-file-browser.utils')
 local uv = vim.uv
 local M = {}
 
----Update the title of the picker, truncating if required.
-local function update_title(picker, title)
-	local len = picker.input.win:size().width - 4
-	picker.title = title:len() > len and "…" .. title:sub(-len + 1) or title
-	picker:update_titles()
-end
-
 --- Set the picker current working directory (cwd) and reload the picker.
 --- This function is used to set the new working directory and refresh the picker.
 ---@param picker any
@@ -18,7 +11,7 @@ local function set_picker_cwd(picker, new_cwd)
 	local resolved_cwd = vim.fs.normalize(new_cwd)
 	if resolved_cwd and resolved_cwd ~= picker:cwd() then
 		picker:set_cwd(resolved_cwd)
-		update_title(picker, new_cwd)
+		Utils.update_title(picker, new_cwd)
 		picker.input:set("", "")
 	end
 	picker:find()
@@ -320,7 +313,6 @@ local ret = {
 			acc[k] = { action = v }
 			return acc
 		end),
-	update_title = update_title,
 }
 
 

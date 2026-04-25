@@ -1,6 +1,7 @@
 local Snacks = require('snacks')
 local Config = require('snacks-file-browser.config')
 local Actions = require('snacks-file-browser.actions')
+local Utils = require('snakcs-file-browser.utils')
 
 local M = {}
 
@@ -70,7 +71,7 @@ function M.open(opts)
 		end,
 		format = 'file',
 		on_show = function(picker)
-			Actions.update_title(picker, picker:cwd())
+			Utils.update_title(picker, picker:cwd())
 		end,
 		actions = Actions.actions,
 		win = opts.win
