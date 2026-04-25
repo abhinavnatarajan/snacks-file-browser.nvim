@@ -1,7 +1,7 @@
 local Snacks = require('snacks')
 local Config = require('snacks-file-browser.config')
 local Actions = require('snacks-file-browser.actions')
-local Utils = require('snakcs-file-browser.utils')
+local Utils = require('snacks-file-browser.utils')
 
 local M = {}
 
