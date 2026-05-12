@@ -43,6 +43,7 @@ function M.open(opts)
 		supports_live = true,
 		layout = opts.layout,
 		notify_lsp_clients_on_rename = opts.notify_lsp_clients_on_rename,
+		on_confirm = opts.on_confirm,
 		finder = function(_opts, ctx)
 			_opts.args = {
 				"--follow",
