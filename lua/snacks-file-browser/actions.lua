@@ -158,7 +158,7 @@ function M.rename(picker, selected)
 			picker:find()
 		end)
 	end
-	vim.ui.input({ prompt = "Enter new name: " }, rename_callback)
+	vim.ui.input({ prompt = "Enter new name: ", default = old_file_name }, rename_callback)
 end
 
 ---Create a new file or directory based on the input in the picker
