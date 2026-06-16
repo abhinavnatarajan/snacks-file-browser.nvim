@@ -5,6 +5,7 @@ local default_config = {
 	follow = false,
 	supports_live = true,
 	notify_lsp_clients_on_rename = true,
+	open_system_cmd = "xdg-open", -- 'xdg_open' | 'open' | 'start'
 	layout = {
 		preview = true,
 		preset = "default",
