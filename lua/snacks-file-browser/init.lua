@@ -30,7 +30,6 @@ local function save_as(bufnr, paths)
 	vim.api.nvim_buf_call(bufnr, function() vim.cmd("silent saveas ++p" .. path) end)
 end
 
----@param opts SnacksFileBrowser.Config
 function M.open(opts)
 	local cwd = opts and opts.cwd or vim.uv.cwd()
 	local os_pathsep = package.config:sub(1, 1)

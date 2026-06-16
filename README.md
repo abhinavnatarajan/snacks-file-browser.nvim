@@ -43,9 +43,9 @@ You can override any configuration value in the opts table or arguments to the c
 For example, to open the file browser in the parent directory of the current buffer, you can use:
 
 ```lua
-require('snacks-file-browser').open {
+require('snacks-file-browser').open ({
     cwd = vim.fs.dirname(vim.api.nvim_buf_get_name(0))
-}
+})
 ```
 ```vim
 :SnacksFileBrowser cwd=..
