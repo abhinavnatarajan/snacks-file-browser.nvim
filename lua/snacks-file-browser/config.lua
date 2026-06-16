@@ -1,15 +1,22 @@
+local Actions = require("snacks-file-browser.actions")
+local Utils = require("snacks-file-browser.utils")
+
+---@type SnacksFileBrowser.Config
 local default_config = {
 	show_empty = true,
-	hidden = true,
-	ignored = true,
-	follow = false,
+	show_hidden = true,
+	show_ignored = true,
+	follow_symlinks = false,
 	supports_live = true,
 	notify_lsp_clients_on_rename = true,
-	open_system_cmd = "xdg-open", -- 'xdg_open' | 'open' | 'start'
-	layout = {
-		preview = true,
-		preset = "default",
-	},
+	actions = Actions.actions,
+	on_confirm = Actions.edit_files,
+	format = 'file',
+	---@param picker SnacksFileBrowser
+	on_show = function(picker)
+		Utils.update_title(picker, picker:cwd())
+	end,
+	layout = { preset = "default" },
 	win = {
 		input = {
 			keys = {
@@ -51,6 +58,7 @@ local default_config = {
 	},
 }
 
+---@type SnacksFileBrowser.Config
 local current_config = vim.deepcopy(default_config)
 
 local M = {}
@@ -59,6 +67,7 @@ function M.set(config)
 	current_config = vim.tbl_deep_extend('force', current_config, config)
 end
 
+---@return SnacksFileBrowser.Config
 function M.get()
 	return current_config
 end

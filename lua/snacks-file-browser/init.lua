@@ -1,19 +1,21 @@
 local Snacks = require('snacks')
 local Config = require('snacks-file-browser.config')
-local Actions = require('snacks-file-browser.actions')
-local Utils = require('snacks-file-browser.utils')
 
 local M = {}
 
-
 ---@param bufnr number Buffer number to save.
----@param paths string Absolute filename to save the buffer to.
+---@param paths string | string[] Absolute filename to save the buffer to.
 local function save_as(bufnr, paths)
-	if #paths > 1 then
-		vim.notify("Multiple paths selected.", vim.log.levels.ERROR)
-		return
+	local path
+	if type(paths) == "table" then
+		if #paths > 1 then
+			vim.notify("Multiple paths selected.", vim.log.levels.ERROR)
+			return
+		end
+		path = paths[1]
+	else
+		path = paths
 	end
-	local path = paths[1]
 	-- if the buffer name is empty then we can just save it
 	-- using the `:w ++p {path}` command
 	if vim.api.nvim_buf_get_name(bufnr) == "" then
@@ -28,60 +30,51 @@ local function save_as(bufnr, paths)
 	vim.api.nvim_buf_call(bufnr, function() vim.cmd("silent saveas ++p" .. path) end)
 end
 
+---@param opts SnacksFileBrowser.Config
 function M.open(opts)
-	opts = vim.tbl_deep_extend('force', Config.get(), opts or {})
+	local cwd = opts and opts.cwd or vim.uv.cwd()
 	local os_pathsep = package.config:sub(1, 1)
+	local finder = function(_opts, ctx)
+		_opts.args = {
+			"--follow",
+			"--max-depth=1",
+			"--color=never",
+			"--strip-cwd-prefix"
+		}
+		if _opts.show_hidden then
+			vim.list_extend(_opts.args, { "--hidden" })
+		end
+		if _opts.show_ignored then
+			vim.list_extend(_opts.args, { "--no-ignore" })
+		end
+		if _opts.follow_symlinks then
+			vim.list_extend(_opts.args, { "--follow" })
+		end
+		_opts.cmd = "fd"
+		_opts.transform = function(item, _ctx)
+			-- fdfind appends a "/" to the end of a file path if it is a directory
+			if item.text:sub(-1) == os_pathsep then
+				item.dir = true
+			end
+			item.file = vim.fs.normalize(vim.fs.abspath(vim.fs.joinpath(_ctx.picker:cwd(), item.text)))
+		end
+		return require('snacks.picker.source.proc').proc(_opts, ctx)
+	end
+	opts = vim.tbl_deep_extend('force', Config.get(), {
+		cwd = cwd,
+		finder = finder,
+	}, opts or {})
 
 	-- Configure the picker to use the actions and keys from options or defaults
-	local cwd = opts.cwd or vim.uv.cwd()
-	return require('snacks').picker({
-		cwd = cwd,
-		show_empty = opts.show_empty,
-		hidden = opts.hidden,
-		ignored = opts.ignored,
-		follow = opts.follow,
-		supports_live = true,
-		layout = opts.layout,
-		notify_lsp_clients_on_rename = opts.notify_lsp_clients_on_rename,
-		on_confirm = opts.on_confirm,
-		finder = function(_opts, ctx)
-			_opts.args = {
-				"--follow",
-				"--max-depth=1",
-				"--color=never",
-				"--strip-cwd-prefix"
-			}
-			if _opts.hidden then
-				vim.list_extend(_opts.args, { "--hidden" })
-			end
-			if _opts.ignored then
-				vim.list_extend(_opts.args, { "--no-ignore" })
-			end
-			if _opts.follow then
-				vim.list_extend(_opts.args, { "--follow" })
-			end
-			_opts.cmd = "fd"
-			_opts.transform = function(item, _ctx)
-				-- fdfind appends a "/" to the end of a file path if it is a directory
-				if item.text:sub(-1) == os_pathsep then
-					item.dir = true
-				end
-				item.file = vim.fs.normalize(vim.fs.abspath(vim.fs.joinpath(_ctx.picker:cwd(), item.text)))
-			end
-			return require('snacks.picker.source.proc').proc(_opts, ctx)
-		end,
-		format = 'file',
-		on_show = function(picker)
-			Utils.update_title(picker, picker:cwd())
-		end,
-		actions = Actions.actions,
-		win = opts.win
-	})
+	return require('snacks').picker(opts)
 end
 
+---@param opts SnacksFileBrowser.Config
 function M.save_buffer_as(opts)
 	local bufnr = vim.api.nvim_get_current_buf()
 	opts = vim.tbl_deep_extend('force', opts or {}, {
+		---@param picker SnacksFileBrowser
+		---@param paths string | string[]
 		on_confirm = function(picker, paths)
 			picker:close()
 			save_as(bufnr, paths)
@@ -90,6 +83,7 @@ function M.save_buffer_as(opts)
 	M.open(opts)
 end
 
+---@param opts SnacksFileBrowser.Config
 function M.save_buffer(opts)
 	if vim.bo.buftype == "nofile" or vim.bo.buftype == "nowrite" then
 		Snacks.notify("Cannot save this buffer", vim.log.levels.WARN)
@@ -99,6 +93,8 @@ function M.save_buffer(opts)
 	if name == "" then
 		local bufnr = vim.api.nvim_get_current_buf()
 		opts = vim.tbl_deep_extend('force', opts or {}, {
+			---@param picker SnacksFileBrowser
+			---@param paths string | string[]
 			on_confirm = function(picker, paths)
 				picker:close()
 				save_as(bufnr, paths)
@@ -114,11 +110,13 @@ function M.save_buffer(opts)
 end
 
 ---Needs to be called before using the file browser
+---@param config SnacksFileBrowser.Config
 function M.setup(config)
 	Config.set(config or {})
 	vim.api.nvim_create_user_command(
 		'SnacksFileBrowser',
 		function(opts)
+			---@cast opts SnacksFileBrowser.Config
 			M.open(opts)
 		end,
 		{
@@ -129,6 +127,7 @@ function M.setup(config)
 	vim.api.nvim_create_user_command(
 		'SnacksFileBrowserSave',
 		function(opts)
+			---@cast opts SnacksFileBrowser.Config
 			M.save_buffer(opts)
 		end,
 		{
@@ -139,6 +138,7 @@ function M.setup(config)
 	vim.api.nvim_create_user_command(
 		'SnacksFileBrowserSaveAs',
 		function(opts)
+			---@cast opts SnacksFileBrowser.Config
 			M.save_buffer_as(opts)
 		end,
 		{

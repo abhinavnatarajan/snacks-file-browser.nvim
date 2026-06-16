@@ -53,55 +53,8 @@ require('snacks-file-browser').open {
 
 ## Configuration
 
-The file browser can be configured by passing a table to the `require('snacks-file-browser').setup` function. The following options are available:
-
-```lua
-require('snacks-file-browser').setup({
-    show_empty = true, -- show empty directories
-    hidden = true, -- show hidden files
-    ignored = true, -- show ignored files
-    follow = false, -- follow the current buffer's directory
-    supports_live = true, -- live update the browser as you type
-    rename = {
-        notify_lsp_clients = true -- notify lsp clients on rename
-    },
-    layout = {
-        preview = true, -- show a preview window
-        preset = "default", -- layout preset (see config for snacks.nvim)
-    },
-    win = {
-        input = {
-            keys = {
-                ["<M-n>"] = { "create_new", mode = { "n", "i" } },
-                ["<M-e>"] = { "edit", mode = { "n", "i" } },
-
-                ["<BS>"] = { "backspace", mode = { "n", "i" } },
-                ["<M-BS>"] = { "navigate_parent", mode = { "n", "i" } },
-                ["<C-]>"] = { "set_cwd", mode = { "i", "n" } },
-
-                ["<M-y>"] = { "yank", mode = { "n", "i" } },
-                ["<M-p>"] = { "copy", mode = { "n", "i" } },
-                ["<M-m>"] = { "move", mode = { "n", "i" } },
-                ["<M-d>"] = { "delete", mode = { "n", "i" } },
-                ["<M-r>"] = { "rename", mode = { "n", "i" } },
-
-                ["<F5>"] = { "refresh", mode = { "n", "i" } },
-            },
-        },
-        list = {
-            keys = {
-                ["<BS>"] = { "navigate_parent", mode = { "n", "x" } },
-                ["y"] = { "yank", mode = { "n", "x" } },
-                ["p"] = { "copy", mode = { "n" } },
-                ["m"] = { "move", mode = { "n" } },
-                ["r"] = { "rename", mode = { "n" } },
-                ["d"] = { "delete", mode = { "n", "x" } },
-                ["<F5>"] = { "refresh", mode = { "n" } },
-            }
-        }
-    },
-})
-```
+The file browser can be configured by passing a table to the `require('snacks-file-browser').setup` function.
+The available options and their defaults can be seen in [`types.lua`](lua/snacks-file-browser/types.lua) and [`config.lua`](lua/snacks-file-browser/config.lua).
 
 ## Default Keybindings
 

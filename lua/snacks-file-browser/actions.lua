@@ -5,7 +5,7 @@ local M = {}
 
 --- Set the picker current working directory (cwd) and reload the picker.
 --- This function is used to set the new working directory and refresh the picker.
----@param picker any
+---@param picker SnacksFileBrowser
 ---@param new_cwd string
 local function set_picker_cwd(picker, new_cwd)
 	local resolved_cwd = vim.fs.normalize(new_cwd)
@@ -17,11 +17,18 @@ local function set_picker_cwd(picker, new_cwd)
 	picker:find()
 end
 
+---@param items snacks.picker.Item[]
+---@return string[]
 local function extract_paths(items)
 	return vim.iter(items):map(function(it) return it.file end):totable()
 end
 
-local function edit_files_cb(picker, paths)
+---@param picker SnacksFileBrowser
+---@param paths string | string[]
+function M.edit_files(picker, paths)
+	if type(paths) == "string" then
+		paths = { paths }
+	end
 	picker:norm(function()
 		picker:close()
 	end)
@@ -37,8 +44,8 @@ local function edit_files_cb(picker, paths)
 	end)
 end
 
-
 ---Navigate up one directory
+---@param picker SnacksFileBrowser
 function M.navigate_parent(picker)
 	local cwd = picker:cwd()
 	local parent = vim.fs.dirname(cwd)
@@ -46,6 +53,7 @@ function M.navigate_parent(picker)
 end
 
 ---Either remove a character from the input or navigate up one directory
+---@param picker SnacksFileBrowser
 function M.backspace(picker)
 	if picker.input:get() == '' then
 		M.navigate_parent(picker)
@@ -56,13 +64,15 @@ function M.backspace(picker)
 end
 
 ---Rerun the finder
+---@param picker SnacksFileBrowser
 function M.refresh(picker)
 	picker:find()
 end
 
 ---Pass the selected file(s) to a callback function.
+---@param picker SnacksFileBrowser
 function M.multi_confirm(picker)
-	local cb = picker.opts.on_confirm or edit_files_cb
+	local cb = picker.opts.on_confirm
 	local selected = picker:selected({ fallback = true })
 	if #selected > 0 then
 		local paths = extract_paths(selected)
@@ -74,30 +84,42 @@ function M.multi_confirm(picker)
 end
 
 ---Set the cwd of neovim from the picker.
+---@param picker SnacksFileBrowser
 function M.set_cwd(picker)
 	vim.cmd("tcd " .. vim.fn.fnameescape(picker:cwd()))
 end
 
----Open selected items with xdg-open
-function M.open_system(picker, item)
+---Open selected items with the system
+---@param picker SnacksFileBrowser
+function M.open_system(picker)
 	local selected = picker:selected({ fallback = true })
-	local open_system_cmd = picker.opts.open_system_cmd or 'open'
 	if #selected > 0 then
-		vim.iter(selected):each(
-			function(it)
-				vim.system({ open_system_cmd, it.file }, { detach = true })
-			end)
-	elseif item and item.score > 0 then
-		-- Have a highlighted item that is not selected, so we open that.
-		vim.system({ open_system_cmd, item.file }, { detach = true })
+		local errors = vim.iter(selected):map(function(it)
+			local systemobj, err = vim.ui.open(it.file)
+			if not systemobj then
+				return err
+			else
+				return nil
+			end
+		end):filter(function(it)
+			return it ~= nil
+		end):totable()
+		if #errors > 0 then
+			local errmsgs = vim.iter(errors):join("\n")
+			Snacks.notify.error("Errors while opening items: " .. errmsgs)
+			return
+		end
+		Snacks.notify.info("Opened " .. tostring(#selected - #errors) .. " items")
 	else
-		require("snacks").notify.error("No items selected")
+		Snacks.notify.error("No items selected")
 	end
 end
 
 ---Pass the highlighted or matched item to a callback function.
+---@param picker SnacksFileBrowser
+---@param item snacks.picker.Item
 function M.confirm(picker, item)
-	local cb = picker.opts.on_confirm or edit_files_cb
+	local cb = picker.opts.on_confirm
 
 	-- No items selected, so we create an item.
 	-- Case 1: No items in the list or the items do not match the input.
@@ -117,13 +139,13 @@ function M.confirm(picker, item)
 				set_picker_cwd(picker, new_path)
 			end)
 		else
-			cb(picker, { new_path })
+			cb(picker, new_path)
 		end
 		return
 	end
 
 	-- Case 2: A valid item is in in the list
-	local path = item.file
+	local path = item.file ---@type string
 	uv.fs_stat(path, vim.schedule_wrap(function(err, stat)
 		if err then
 			Snacks.notify.error("Could not stat file: " .. err)
@@ -138,6 +160,8 @@ function M.confirm(picker, item)
 end
 
 ---Rename the currently selected file or directory
+---@param picker SnacksFileBrowser
+---@param selected snacks.picker.Item
 function M.rename(picker, selected)
 	if not selected then return end
 	local notify_lsp_clients = picker.opts.notify_lsp_clients_on_rename
@@ -163,9 +187,10 @@ function M.rename(picker, selected)
 end
 
 ---Create a new file or directory based on the input in the picker
+---@param picker SnacksFileBrowser
 function M.create_new(picker)
 	local function create_new(new_path)
-		if not picker or picker.is_closed then return end
+		if not picker or picker.closed then return end
 
 		-- If the path is a directory we create it and navigate into it.
 		local dir = ""
@@ -214,6 +239,7 @@ function M.create_new(picker)
 	end
 end
 
+---@param picker SnacksFileBrowser
 function M.yank(picker)
 	local files = {} ---@type string[]
 	if vim.fn.mode():find("^[vV]") then
@@ -228,6 +254,7 @@ function M.yank(picker)
 	Snacks.notify.info("Yanked " .. message)
 end
 
+---@param picker SnacksFileBrowser
 function M.copy(picker)
 	local files = {} ---@type string[]
 	for _, item in ipairs(picker:selected({ fallback = false })) do
@@ -247,6 +274,7 @@ function M.copy(picker)
 	end)
 end
 
+---@param picker SnacksFileBrowser
 function M.move(picker)
 	local files = {} ---@type string[]
 	for _, item in ipairs(picker:selected({ fallback = false })) do
@@ -268,13 +296,14 @@ function M.move(picker)
 	})
 end
 
+---@param picker SnacksFileBrowser
 function M.delete(picker)
 	if vim.fn.mode():find("^[vV]") then
 		picker.list:select() -- add the visual selection to the list of selected items
 	end
 	local sel = picker:selected({ fallback = true })
 	if #sel == 0 then return end
-	local message = #sel == 1 and vim.fs.joinpath(sel.file) or #sel .. " items"
+	local message = #sel == 1 and vim.fs.joinpath(sel[1].file) or #sel .. " items"
 	local insert_mode = vim.fn.mode() == "i"
 	local _, col = unpack(vim.api.nvim_win_get_cursor(picker.input.win.win))
 	local is_end_of_line = col >= #picker.input:get()
@@ -308,13 +337,17 @@ function M.delete(picker)
 		end)
 end
 
-local ret = {
-	actions = vim.iter(M)
-		:fold({}, function(acc, k, v)
-			acc[k] = { action = v }
-			return acc
-		end),
-}
-
+local ret = setmetatable({
+		actions = vim.iter(M)
+			:fold({}, function(acc, k, v)
+				acc[k] = { action = v }
+				return acc
+			end),
+	},
+	{
+		__index = function(t, key)
+			return t.actions[key].action
+		end,
+	})
 
 return ret
