@@ -173,7 +173,7 @@ function M.create_file(file)
 	if mkdir_result ~= 1 then
 		return nil, "Could not create parent directory: " .. dir
 	end
-	local fd, error = uv.fs_open(file, "w", tonumber('755', 8))
+	local fd, error = uv.fs_open(file, "w", tonumber('644', 8))
 	if not fd then
 		return nil, error
 	end

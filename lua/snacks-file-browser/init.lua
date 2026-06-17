@@ -16,10 +16,11 @@ local function save_as(bufnr, paths)
 	else
 		path = paths
 	end
+	local escaped_path = vim.fn.fnameescape(path)
 	-- if the buffer name is empty then we can just save it
 	-- using the `:w ++p {path}` command
 	if vim.api.nvim_buf_get_name(bufnr) == "" then
-		vim.api.nvim_buf_call(bufnr, function() vim.cmd("silent w! ++p " .. path) end)
+		vim.api.nvim_buf_call(bufnr, function() vim.cmd("silent w! ++p " .. escaped_path) end)
 		return
 	end
 	-- if the buffer has a non-empty name `oldpath`,
@@ -27,7 +28,7 @@ local function save_as(bufnr, paths)
 	-- If `cpoptions` contains `A`, the buffer will be marked as not modified
 	-- but in reality it does not reflect the state of `oldpath`.
 	-- This is misleading, so we instead use "saveas"
-	vim.api.nvim_buf_call(bufnr, function() vim.cmd("silent saveas ++p" .. path) end)
+	vim.api.nvim_buf_call(bufnr, function() vim.cmd("silent saveas ++p " .. escaped_path) end)
 end
 
 function M.open(opts)
@@ -35,7 +36,6 @@ function M.open(opts)
 	local os_pathsep = package.config:sub(1, 1)
 	local finder = function(_opts, ctx)
 		_opts.args = {
-			"--follow",
 			"--max-depth=1",
 			"--color=never",
 			"--strip-cwd-prefix"
