@@ -6,6 +6,7 @@ This is similar to `nvim-telescope/Telescope-file-browser.nvim`.
 ## Requirements
 
 - [fd](https://github.com/sharkdp/fd)
+- [wl-clipboard](https://github.com/bugaevc/wl-clipboard) for file clipboard actions. Clipboard integration currently supports Wayland only.
 
 ## Installation
 
@@ -60,56 +61,64 @@ The available options and their defaults can be seen in [`types.lua`](lua/snacks
 
 ### Input Window
 
-| Keybinding | Action                                                                         |
-| ---        | ---                                                                            |
-| `<CR>`     | Pass the selected item to a callback (by default `vim.cmd.edit`).              |
-| `<M-n>`    | Create a new file or directory.                                                |
-| `<M-e>`    | Edit the selected file(s) (will skip directories).                             |
-| `<BS>`     | Navigate up one directory if the input is empty, otherwise delete a character. |
-| `<M-BS>`   | Navigate up one directory.                                                     |
-| `<C-]>`    | Set the current working directory of neovim to the picker's directory.         |
-| `<M-y>`    | Yank the selected file(s) to the clipboard.                                    |
-| `<M-p>`    | Copy the selected file(s) to the current directory.                            |
-| `<M-m>`    | Move the selected file(s) to the current directory.                            |
-| `<M-d>`    | Delete the selected file(s).                                                   |
-| `<M-r>`    | Rename the selected file.                                                      |
-| `<M-o>`        | Open the selected item(s) with the system's default application. |
-| `<F5>`     | Refresh the file browser.                                                      |
+| Keybinding | Modes  | Action                                                                         |
+| ---        | ---    | ---                                                                            |
+| `<M-n>`    | `n, i` | Create a new file or directory.                                                |
+| `<M-CR>`   | `n, i` | Confirm selected item(s).                                                      |
+| `<M-e>`    | `n, i` | Edit the selected item(s), skipping directories.                               |
+| `<CR>`     | `n, i` | Confirm the highlighted or matched item.                                       |
+| `<BS>`     | `n, i` | Navigate up one directory if the input is empty, otherwise delete a character. |
+| `<M-BS>`   | `n, i` | Navigate up one directory.                                                     |
+| `<C-]>`    | `n, i` | Set Neovim's tab-local cwd to the picker's directory.                          |
+| `<M-c>`    | `n, i` | Yank selected path(s) to a register.                                           |
+| `<C-c>`    | `n, i` | Yank selected item(s) to the system clipboard. Wayland only.                   |
+| `<C-v>`    | `n, i` | Paste item(s) from the system clipboard. Wayland only.                         |
+| `<M-p>`    | `n, i` | Copy selected item(s) to the current directory.                                |
+| `<M-m>`    | `n, i` | Move selected item(s) to the current directory.                                |
+| `<M-d>`    | `n, i` | Delete selected item(s).                                                       |
+| `<M-r>`    | `n, i` | Rename the highlighted item.                                                   |
+| `<M-o>`    | `n, i` | Open selected item(s) with the system's default application.                   |
+| `<F5>`     | `n, i` | Refresh the file browser.                                                      |
 
 ### List Window
 
-| Keybinding | Action                                                           |
-| ---        | ---                                                              |
-| `<BS>`     | Navigate up one directory.                                       |
-| `y`        | Yank the selected file(s) to the clipboard.                      |
-| `p`        | Copy the selected file(s) to the current directory.              |
-| `m`        | Move the selected file(s) to the current directory.              |
-| `r`        | Rename the selected file.                                        |
-| `d`        | Delete the selected file(s).                                     |
-| `o`        | Open the selected item(s) with the system's default application. |
-| `<F5>`     | Refresh the file browser.                                        |
+| Keybinding | Modes  | Action                                                               |
+| ---        | ---    | ---                                                                  |
+| `<M-n>`    | `n, i` | Create a new file or directory.                                      |
+| `<M-e>`    | `n, x` | Edit the selected item(s), skipping directories.                     |
+| `<CR>`     | `n, x` | Confirm the highlighted or matched item.                             |
+| `<M-CR>`   | `n, x` | Confirm selected item(s).                                            |
+| `<BS>`     | `n`    | Navigate up one directory.                                           |
+| `<C-]>`    | `n`    | Set Neovim's tab-local cwd to the picker's directory.                |
+| `<M-c>`    | `n, i` | Yank selected path(s) to a register.                                 |
+| `<C-c>`    | `n, x` | Yank selected item(s) to the system clipboard. Wayland only.         |
+| `<C-v>`    | `n, x` | Paste item(s) from the system clipboard. Wayland only.               |
+| `p`        | `n`    | Copy selected item(s) to the current directory.                      |
+| `m`        | `n`    | Move selected item(s) to the current directory.                      |
+| `d`        | `n, x` | Delete selected item(s).                                             |
+| `r`        | `n`    | Rename the highlighted item.                                         |
+| `o`        | `n, x` | Open selected item(s) with the system's default application.         |
+| `<F5>`     | `n`    | Refresh the file browser.                                            |
 
 ## Available Actions
 
-* `navigate_parent`: Navigate up one directory.
-* `backspace`: If the input is empty, navigate up one directory. Otherwise, delete a character.
-* `refresh`: Rerun the finder.
-* `edit`: Edit the selected item(s).
-* `set_cwd`: Set the cwd of neovim from the picker.
-* `confirm`: Pass the matched item in the picker list to a user-supplied callback (default `vim.cmd.edit`).
-    * If there is no item matching the input and no highlighted item in the picker:
-        * If the input ends with a path separator, create a new directory and navigate into it.
-        * Otherwise, pass the input to the callback.
-    * If a directory is highlighted in the picker, navigate into it.
-    * If a file is matched/highlighted in the picker, pass it to the callback.
-    Note that the `confirm` action does not deal with selected items.
-    This is to allow one to descend into directories while retaining currently selected items.
-* `multi_confirm`: Pass the picker and the paths of all selected items to a user-supplied callback.
-By default, the callback closes the picker and calls `vim.cmd.edit` on all the selected items.
-* `rename`: Rename the currently selected file or directory.
-* `create_new`: Create a new file or directory based on the input in the picker.
-* `yank`: Yank the selected item(s) to the clipboard.
-* `copy`: Copy the selected item(s) to the current directory.
-* `move`: Move the selected item(s) to the current directory.
-* `delete`: Delete the selected item(s).
-* `open_system`: Open the selected item(s) with the system's default application.
+The actions below use selected items when selections exist. Unless stated otherwise, actions that operate on selected items fall back to the highlighted item when nothing is selected. If there are no selected items and no highlighted item, they show an error and do nothing.
+
+| Action | Behaviour |
+| --- | --- |
+| `cd_parent` | Navigate up one directory and refresh the picker. |
+| `smart_cd_parent` | If the input is empty, run `cd_parent`; otherwise, delete one character from the input. |
+| `refresh` | Rerun the finder. |
+| `edit_selected` | Edit selected item(s), or the highlighted item when nothing is selected. Directories are skipped by the default editor callback. |
+| `sync_cwd` | Set Neovim's tab-local cwd to the picker's current directory with `:tcd`. |
+| `confirm` | Confirm only the highlighted or matched item; it intentionally ignores selected items so you can enter directories without clearing selections. If there is no matching item, it uses the current input: a trailing path separator creates that directory and enters it; otherwise the input path is passed to `on_confirm` as a one-item list. If the item is a directory, the picker enters it. If the item is a file, its path is passed to `on_confirm` as a one-item list. |
+| `multi_confirm` | Pass selected path(s) to `on_confirm`; falls back to the highlighted item when nothing is selected. The default `on_confirm` closes the picker and edits the files. |
+| `rename` | Rename the highlighted item. This action does not use selected items as a fallback source. |
+| `create_new` | Create a new file or directory. If the picker input is empty, prompt for a path; otherwise use the picker input. A trailing path separator creates a directory and enters it; otherwise a file is created and the picker moves to its parent directory. |
+| `yank_paths` | Yank selected path(s), or the highlighted path when nothing is selected, to the active register as linewise text. |
+| `yank_to_clipboard` | Yank selected item(s), or the highlighted item when nothing is selected, to the system clipboard as `text/uri-list`. Currently supports Wayland only via `wl-copy`. |
+| `paste_from_clipboard` | Paste files from the system clipboard into the picker's current directory. Currently supports Wayland only via `wl-paste`. |
+| `copy` | Copy explicitly selected item(s) to the picker's current directory. This action does not fall back to the highlighted item. |
+| `move` | Move explicitly selected item(s) to the picker's current directory. This action does not fall back to the highlighted item. |
+| `delete` | Delete selected item(s), or the highlighted item when nothing is selected, after confirmation. Open buffers for deleted files are wiped. |
+| `open_system` | Open selected item(s), or the highlighted item when nothing is selected, with the system's default application. |

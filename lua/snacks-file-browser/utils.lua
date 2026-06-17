@@ -1,6 +1,24 @@
 local M = {}
 local uv = vim.uv
 
+---@param picker SnacksFileBrowser
+---@param paths string[]
+function M.edit_paths(picker, paths)
+	picker:norm(function()
+		picker:close()
+	end)
+	local os_pathsep = package.config:sub(1, 1)
+	local fnames = vim.iter(paths)
+		:filter(function(path)
+			return not path:sub(-1):find(os_pathsep)
+		end):totable()
+	vim.iter(fnames):map(function(fname)
+		vim.schedule(function()
+			vim.cmd.edit(fname)
+		end)
+	end)
+end
+
 ---Update the title of the picker, truncating if required.
 function M.update_title(picker, title)
 	local len = picker.input.win:size().width - 4
