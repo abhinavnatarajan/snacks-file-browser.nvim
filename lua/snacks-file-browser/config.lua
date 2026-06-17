@@ -66,16 +66,12 @@ local current_config = vim.deepcopy(default_config)
 local M = {}
 
 function M.set(config)
-	current_config = vim.tbl_deep_extend('force', current_config, config)
+	current_config = vim.tbl_deep_extend('force', default_config, config)
 end
 
 ---@return SnacksFileBrowser.Config
 function M.get()
 	return current_config
-end
-
-function M.reset()
-	current_config = vim.deepcopy(default_config)
 end
 
 return M
