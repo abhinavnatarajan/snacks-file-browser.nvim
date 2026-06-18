@@ -424,20 +424,15 @@ M.actions.delete = {
 			{ 'Yes', 'No' },
 			{ prompt = "Delete " .. message .. "?" },
 			function(confirm)
-				if not confirm then return end
-				local num_deleted = 0
-				vim.iter(selected_items):each(
-					function(it)
-						local path = it.file
-						local ok, err = pcall(vim.fs.rm, path, { recursive = true })
-						if ok then
-							Snacks.bufdelete({ file = path, force = true, wipe = true })
-							num_deleted = num_deleted + 1
-						else
-							Snacks.notify.error("Delete failed: " .. err)
-						end
-					end)
-				Snacks.notify.info("Deleted " .. num_deleted .. " items")
+				if confirm ~= "Yes" then return end
+				local paths = vim.iter(selected_items):map(function(it) return it.file end):totable()
+				local ok, errors, deleted_count = Utils.delete_paths(paths)
+				if not ok then
+					Snacks.notify.error("Error while deleting items:\n" .. table.concat(errors, "\n"))
+				end
+				if deleted_count > 0 then
+					Snacks.notify.info("Deleted " .. deleted_count .. " items")
+				end
 				picker:action("refresh") -- Refresh the picker
 				if insert_mode then
 					if is_end_of_line then

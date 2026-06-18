@@ -1,4 +1,5 @@
 local M = {}
+local Snacks = require('snacks')
 local uv = vim.uv
 
 ---@param paths string[]
@@ -339,6 +340,24 @@ function M.rename_path(from, to, notify_lsp_clients)
 		end
 	end)
 	return success
+end
+
+---@param paths string[]
+---@return boolean|nil, string[]|nil, number
+function M.delete_paths(paths)
+	local errors = {}
+	local deleted_count = 0
+	for _, path in ipairs(paths) do
+		local ok, err = pcall(vim.fs.rm, path, { recursive = true })
+		if ok then
+			Snacks.bufdelete({ file = path, force = true, wipe = true })
+			deleted_count = deleted_count + 1
+		else
+			table.insert(errors, "Could not delete " .. path .. ": " .. tostring(err))
+		end
+	end
+
+	return #errors == 0 and true or nil, #errors > 0 and errors or nil, deleted_count
 end
 
 ---@async

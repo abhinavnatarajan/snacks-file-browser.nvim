@@ -66,6 +66,22 @@ local function with_system(fn)
 	if not ok then error(err, 0) end
 end
 
+local function with_ui_select(select_fn, fn)
+	local original_select = vim.ui.select
+	vim.ui.select = select_fn
+	local ok, err = xpcall(fn, debug.traceback)
+	vim.ui.select = original_select
+	if not ok then error(err, 0) end
+end
+
+local function with_fs_rm(rm_fn, fn)
+	local original_rm = vim.fs.rm
+	vim.fs.rm = rm_fn
+	local ok, err = xpcall(fn, debug.traceback)
+	vim.fs.rm = original_rm
+	if not ok then error(err, 0) end
+end
+
 local function wait_for(callback)
 	assert_true(vim.wait(1000, callback, 10), "timed out waiting for callback")
 end
@@ -232,6 +248,110 @@ test("copy action requires explicit selection", function()
 	assert_true(#state.notifications > 0, "expected selection notification")
 	assert_eq(state.notifications[1].level, "error")
 	assert_match(state.notifications[1].msg, "No items selected")
+end)
+
+test("delete_paths deletes files and directories", function()
+	with_tempdir(function(dir)
+		local file = vim.fs.joinpath(dir, "file.txt")
+		local child_dir = vim.fs.joinpath(dir, "child")
+		local nested = vim.fs.joinpath(child_dir, "nested.txt")
+		write_file(file, { "file" })
+		assert_eq(vim.fn.mkdir(child_dir, "p"), 1)
+		write_file(nested, { "nested" })
+
+		local ok, errors, deleted_count = Utils.delete_paths({ file, child_dir })
+		assert_eq(ok, true)
+		assert_eq(errors, nil)
+		assert_eq(deleted_count, 2)
+		assert_eq(vim.uv.fs_stat(file), nil)
+		assert_eq(vim.uv.fs_stat(child_dir), nil)
+		assert_eq(#state.bufdeleted, 2)
+		assert_eq(state.bufdeleted[1], { file = file, force = true, wipe = true })
+		assert_eq(state.bufdeleted[2], { file = child_dir, force = true, wipe = true })
+	end)
+end)
+
+test("delete_paths reports failures consistently", function()
+	with_fs_rm(function(path)
+		error("permission denied: " .. path)
+	end, function()
+		local ok, errors, deleted_count = Utils.delete_paths({ "/tmp/not-deleted" })
+		assert_eq(ok, nil)
+		assert_true(type(errors) == "table" and #errors == 1, "expected one delete error")
+		assert_match(errors[1], "Could not delete /tmp/not%-deleted")
+		assert_eq(deleted_count, 0)
+		assert_eq(#state.bufdeleted, 0)
+	end)
+end)
+
+test("delete action delegates filesystem work to utils", function()
+	state.notifications = {}
+	local original_delete_paths = Utils.delete_paths
+	local calls = {}
+	Utils.delete_paths = function(paths)
+		table.insert(calls, paths)
+		return true, nil, #paths
+	end
+
+	local ok, err = xpcall(function()
+		with_ui_select(function(_, _, callback)
+			callback("Yes")
+		end, function()
+			local refresh_count = 0
+			local picker = {
+				selected = function() return { { file = vim.fs.joinpath(root, "README.md"), score = 1 } } end,
+				input = {
+					win = { win = vim.api.nvim_get_current_win() },
+					get = function() return "" end,
+				},
+				action = function(_, name)
+					if name == "refresh" then refresh_count = refresh_count + 1 end
+				end,
+			}
+
+			Actions.actions.delete.action(picker, nil)
+			assert_eq(calls, { { vim.fs.joinpath(root, "README.md") } })
+			assert_eq(refresh_count, 1)
+			assert_eq(state.notifications[1], { level = "info", msg = "Deleted 1 items" })
+		end)
+	end, debug.traceback)
+	Utils.delete_paths = original_delete_paths
+	if not ok then error(err, 0) end
+end)
+
+test("delete action does nothing when confirmation is cancelled", function()
+	state.notifications = {}
+	local original_delete_paths = Utils.delete_paths
+	local called = false
+	Utils.delete_paths = function()
+		called = true
+		return true, nil, 1
+	end
+
+	local ok, err = xpcall(function()
+		with_ui_select(function(_, _, callback)
+			callback("No")
+		end, function()
+			local refresh_count = 0
+			local picker = {
+				selected = function() return { { file = vim.fs.joinpath(root, "README.md"), score = 1 } } end,
+				input = {
+					win = { win = vim.api.nvim_get_current_win() },
+					get = function() return "" end,
+				},
+				action = function(_, name)
+					if name == "refresh" then refresh_count = refresh_count + 1 end
+				end,
+			}
+
+			Actions.actions.delete.action(picker, nil)
+			assert_eq(called, false)
+			assert_eq(refresh_count, 0)
+			assert_eq(#state.notifications, 0)
+		end)
+	end, debug.traceback)
+	Utils.delete_paths = original_delete_paths
+	if not ok then error(err, 0) end
 end)
 
 local failures = 0

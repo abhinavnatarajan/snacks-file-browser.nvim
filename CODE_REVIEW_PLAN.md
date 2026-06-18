@@ -11,7 +11,7 @@ This document captures code review observations for later triage. It focuses on 
 - [x] Add a minimal headless Neovim test harness and initial focused tests.
 - [x] Refresh stale architecture notes now that clipboard shell commands and `vim.ui.open` moved into `utils.lua`.
 - [ ] Standardize `mkdir_async`, `create_file`, `rename_path`, and delete result contracts around `ok, errors`.
-- [ ] Move delete filesystem behavior and buffer cleanup into `utils.lua`, keeping confirmation and notifications in `actions.lua`.
+- [x] Move delete filesystem behavior and buffer cleanup into `utils.lua`, keeping confirmation and notifications in `actions.lua`.
 - [ ] Simplify directory creation behind one clear `mkdir_p` or `mkdir_p_async` helper.
 - [ ] Revisit composed clipboard paste utilities after async helper callback shapes are consistent.
 - [ ] Defer host-qualified and UNC-like clipboard URI support until there is a reliable platform-specific resolver or library.
@@ -21,7 +21,8 @@ This document captures code review observations for later triage. It focuses on 
 ### Standardize Filesystem Callback Contracts
 
 - Copy and move operations now use `callback(ok, errors)` where `errors` is always `string[]|nil`.
-- Later standardize create, delete, and rename error handling around one result convention as well.
+- Delete now returns `ok, errors, deleted_count`, where `errors` is always `string[]|nil`.
+- Later standardize create and rename error handling around one result convention as well.
 - Prefer one convention across filesystem helpers, for example `callback(ok, errors)` where `errors` is always `string[]|nil`.
 - Later standardize async helpers around one callback shape, for example `callback(ok, errors, result)`, before composing multi-step operations such as clipboard paste directly inside utilities.
 
@@ -34,8 +35,8 @@ This document captures code review observations for later triage. It focuses on 
 ### Clarify The Action/Utility Boundary
 
 - `actions.lua` now delegates system opening, clipboard shell commands, clipboard URI parsing, copy, move, create, and rename helpers to `utils.lua`.
-- The remaining uneven boundary is delete: `actions.lua` still performs direct filesystem deletion and buffer cleanup after collecting confirmation.
-- Keep actions focused on selection, confirmation, notifications, and picker refresh; move remaining filesystem operations into utilities with consistent result types.
+- Delete filesystem behavior and buffer cleanup are now delegated to `utils.lua`.
+- Keep actions focused on selection, confirmation, notifications, and picker refresh; keep filesystem operations in utilities with consistent result types.
 
 ### Clipboard URI Handling
 
@@ -50,7 +51,7 @@ This document captures code review observations for later triage. It focuses on 
 
 ### Add Focused Tests
 
-- A minimal headless Neovim test harness now covers clipboard URI parsing, CRLF clipboard output, copy callback errors, non-empty directory copying, and copy selection fallback.
+- A minimal headless Neovim test harness now covers clipboard URI parsing, CRLF clipboard output, copy callback errors, non-empty directory copying, copy selection fallback, and delete utility/action behavior.
 - High-value behavioral tests would cover:
 - `create_new` directory creation.
 - Move/copy failures for non-writable destinations.
