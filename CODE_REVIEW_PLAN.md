@@ -6,6 +6,16 @@ This document captures code review observations for later triage. It focuses on 
 
 - None currently tracked.
 
+## TODO
+
+- [x] Add a minimal headless Neovim test harness and initial focused tests.
+- [ ] Refresh stale architecture notes now that clipboard shell commands and `vim.ui.open` moved into `utils.lua`.
+- [ ] Standardize `mkdir_async`, `create_file`, `rename_path`, and delete result contracts around `ok, errors`.
+- [ ] Move delete filesystem behavior and buffer cleanup into `utils.lua`, keeping confirmation and notifications in `actions.lua`.
+- [ ] Simplify directory creation behind one clear `mkdir_p` or `mkdir_p_async` helper.
+- [ ] Revisit composed clipboard paste utilities after async helper callback shapes are consistent.
+- [ ] Defer host-qualified and UNC-like clipboard URI support until there is a reliable platform-specific resolver or library.
+
 ## Architecture And Maintainability Themes
 
 ### Standardize Filesystem Callback Contracts
