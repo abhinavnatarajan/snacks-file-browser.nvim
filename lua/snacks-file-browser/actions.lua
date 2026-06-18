@@ -15,7 +15,7 @@ local function set_picker_cwd(picker, new_cwd)
 		Utils.update_title(picker, new_cwd)
 		picker.input:set("", "")
 	end
-	picker:action("refresh")
+	picker:find()
 end
 
 ---@param picker SnacksFileBrowser
@@ -175,7 +175,7 @@ M.actions.confirm = {
 					set_picker_cwd(picker, new_path)
 				end)
 			else
-				callback(picker, { { file = new_path, text = input } })
+				callback(picker, { { idx = -1, score = 0, file = new_path, text = input } })
 			end
 			return
 		end
@@ -188,7 +188,6 @@ M.actions.confirm = {
 		end
 	end
 }
----Pass the highlighted or matched item to a callback function.
 
 M.actions.rename = {
 	name = "rename",
@@ -235,7 +234,7 @@ M.actions.create_new = {
 					Snacks.notify.info("Directory already exists")
 					return
 				end
-				Utils.mkdir(new_path, nil, function(err)
+				Utils.mkdir_async(new_path, nil, function(err)
 					if err then
 						Snacks.notify.error("Could not create " .. new_path .. "\n" .. err)
 						return
@@ -345,6 +344,7 @@ M.actions.copy = {
 		local files = vim.iter(picker:selected({ fallback = false }))
 			:map(function(item) return item.file end)
 			:totable()
+		if #files == 0 then return end
 		local dir = picker:cwd()
 		Utils.copy_paths(files, dir, function(success, errors)
 			if not success then
@@ -370,18 +370,18 @@ M.actions.move = {
 			:totable()
 		local dir = picker:cwd()
 		Utils.move_paths(files, dir, {
-			notify_lsp_clients = picker.opts.notify_lsp_clients_on_rename or false,
-			callback = function(success, err)
-				if not success then
-					Snacks.notify.error("Error while moving items: \n" .. table.concat(err, "\n"))
-					return
-				end
-				-- Might have some items moved even if there were errors
-				Snacks.notify.info("Moved " .. #files - (err and #err or 0) .. " items")
-				picker.list:set_selected()
-				picker:action("refresh")
+			notify_lsp_clients = picker.opts.notify_lsp_clients_on_rename or false
+		}, function(success, errors)
+			if not success then
+				Snacks.notify.error("Error while moving items:\n" .. table.concat(errors, "\n"))
 			end
-		})
+			local moved_count = #files - (errors and #errors or 0)
+			if moved_count > 0 then
+				Snacks.notify.info("Moved " .. moved_count .. " items")
+			end
+			picker.list:set_selected()
+			picker:action("refresh")
+		end)
 	end
 }
 

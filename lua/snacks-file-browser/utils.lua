@@ -248,7 +248,7 @@ end
 ---@param path string  -- Absolute file path to copy.
 ---@param dir string  -- Absolute path of destination directory.
 ---@param path_type "file" | "directory"  -- Type of path.
----@param callback function  -- Callback function to call when the copy is complete.
+---@param callback fun(ok: boolean|nil, errors?: string[])  -- Callback function to call when the copy is complete.
 local function copy_path(path, dir, path_type, callback)
 	if path_type == "file" then
 		local destination = vim.fs.joinpath(dir, vim.fs.basename(path))
@@ -280,9 +280,9 @@ local function copy_path(path, dir, path_type, callback)
 					done = done + 1
 				else
 					local child_path = vim.fs.joinpath(path, name)
-					copy_path(child_path, new_dir, type, function(err)
-						if err then
-							vim.list_extend(errors, err)
+					copy_path(child_path, new_dir, type, function(success, child_errors)
+						if not success and child_errors then
+							vim.list_extend(errors, child_errors)
 						end
 						done = done + 1
 						vim.schedule(function() coroutine.resume(co) end)
@@ -301,31 +301,31 @@ end
 ---Copy a list of files or paths to a new location.
 ---@param paths string[]  -- List of file paths to copy.
 ---@param dir string  -- Destination directory.
----@param callback function  -- Callback function to call when the copy is complete.
+---@param callback fun(ok: boolean|nil, errors?: string[])  -- Callback function to call when the copy is complete.
 function M.copy_paths(paths, dir, callback)
-	local writeable, error, message = is_writeable_dir(dir)
+	local writeable, error = is_writeable_dir(dir)
 	if error then
-		callback(nil, error, message)
+		callback(nil, { error })
 		return
 	elseif not writeable then
-		callback(nil, "EACCES", "Directory is not writeable: " .. dir)
+		callback(nil, { "Directory is not writeable: " .. dir })
+		return
 	end
 	coroutine.wrap(function()
 		local errors = {}
 		local done = 0
 		local co = coroutine.running()
-		local stat
 		for _, path in ipairs(paths) do
-			stat, error = uv.fs_stat(path)
+			local stat, stat_error = uv.fs_stat(path)
 			if not stat then
-				table.insert(errors, error)
+				table.insert(errors, stat_error)
 				done = done + 1
 			elseif stat.type ~= "file" and stat.type ~= "directory" then
 				table.insert(errors, "Unsupported file type: " .. stat.type .. " for " .. path)
 				done = done + 1
 			else
 				copy_path(path, dir, stat.type, function(success, err_copy)
-					if not success then
+					if not success and err_copy then
 						vim.list_extend(errors, err_copy)
 					end
 					done = done + 1
@@ -345,17 +345,20 @@ end
 ---Move a file or directory to a new location
 ---@param paths string[]  -- List of absolute file paths to move
 ---@param dir string  -- Destination directory
-function M.move_paths(paths, dir, opts)
+---@param opts? { notify_lsp_clients?: boolean }
+---@param callback? fun(ok: boolean|nil, errors?: string[])
+function M.move_paths(paths, dir, opts, callback)
 	opts = opts or {}
-	local callback = opts.callback or function(_, _) end
+	callback = callback or function(_, _) end
 	local notify_lsp_clients = opts.notify_lsp_clients or false
 
 	local writeable, error = is_writeable_dir(dir)
 	if error then
-		callback({ error = error })
+		callback(nil, { error })
 		return
 	elseif not writeable then
-		callback({ error = "EACCES", message = "Directory is not writeable: " .. dir })
+		callback(nil, { "Directory is not writeable: " .. dir })
+		return
 	end
 	coroutine.wrap(function()
 		local co = coroutine.running()
@@ -365,12 +368,10 @@ function M.move_paths(paths, dir, opts)
 			local old_path = vim.fs.normalize(path)
 			local new_path = vim.fs.joinpath(dir, vim.fs.basename(path))
 			vim.schedule(function()
-				local success
-				success, error = M.rename_path(old_path, new_path, notify_lsp_clients)
-				if error or not success then
-					table.insert(errors, {
-						[error] = ("Could not move %s to %\n%s"):format(old_path, new_path, error)
-					})
+				local success, rename_error, message = M.rename_path(old_path, new_path, notify_lsp_clients)
+				if rename_error or not success then
+					table.insert(errors,
+						("Could not move %s to %s: %s"):format(old_path, new_path, message or rename_error or "unknown error"))
 				end
 				done = done + 1
 				return vim.schedule(function() coroutine.resume(co) end)
