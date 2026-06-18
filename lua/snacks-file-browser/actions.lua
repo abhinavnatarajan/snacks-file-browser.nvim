@@ -179,14 +179,16 @@ M.actions.accept = {
 			-- If the path is a directory we create it and navigate into it.
 			local os_pathsep = package.config:sub(1, 1)
 			if new_path:sub(-1):find(os_pathsep) then
-				Utils.mkdir_async(new_path, nil, function(err)
-					if err then
-						Snacks.notify.error("Could not create directory " .. new_path)
-						return
-					end
+				local ok, errors, did_create = Utils.create_directory(new_path)
+				if not ok then
+					---@cast errors string[]
+					Snacks.notify.error("Could not create directory:\n" .. table.concat(errors, "\n"))
+					return
+				end
+				if did_create then
 					Snacks.notify.info("Created directory: " .. new_path)
-					set_picker_cwd(picker, new_path)
-				end)
+				end
+				set_picker_cwd(picker, new_path)
 			else
 				callback(picker, { { idx = -1, score = 0, file = new_path, text = input } })
 			end
@@ -218,10 +220,10 @@ M.actions.rename = {
 				return
 			end
 			local new_path = vim.fs.abspath(vim.fs.normalize(vim.fs.joinpath(picker:cwd(), new_name)))
-			local _, err, _ = Utils.rename_path(old_path, new_path, notify_lsp_clients)
+			local _, errors = Utils.rename_path(old_path, new_path, notify_lsp_clients)
 			vim.schedule(function()
-				if err then
-					Snacks.notify.error("Rename failed: " .. err)
+				if errors then
+					Snacks.notify.error("Rename failed: " .. table.concat(errors, "\n"))
 					return
 				end
 				Snacks.notify.info("Renamed " .. old_file_name .. " to " .. new_name)
@@ -242,19 +244,18 @@ M.actions.create_new = {
 
 			-- If the path is a directory we create it and navigate into it.
 			if new_path:sub(-1) == package.config:sub(1, 1) then
-				Utils.create_directory(new_path, function(ok, errors, did_create)
-					if not ok then
-						---@cast errors string[]
-						Snacks.notify.error("Could not create directory:\n" .. table.concat(errors, "\n"))
-						return
-					end
-					if not did_create then
-						Snacks.notify.info("Directory already exists")
-						return
-					end
-					set_picker_cwd(picker, new_path)
-					Snacks.notify.info("Created directory: " .. new_path)
-				end)
+				local ok, errors, did_create = Utils.create_directory(new_path)
+				if not ok then
+					---@cast errors string[]
+					Snacks.notify.error("Could not create directory:\n" .. table.concat(errors, "\n"))
+					return
+				end
+				if not did_create then
+					Snacks.notify.info("Directory already exists")
+					return
+				end
+				set_picker_cwd(picker, new_path)
+				Snacks.notify.info("Created directory: " .. new_path)
 			else
 				-- Create the file.
 				local dir = vim.fs.dirname(new_path)

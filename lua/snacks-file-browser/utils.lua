@@ -124,139 +124,40 @@ function M.update_title(picker, title)
 	picker:update_titles()
 end
 
----@async
----Recursively creates an absolute directory and all its parent directories asynchronously.
----(Implemented iteratively, assumes path is absolute if not nil/empty)
----@param path string The absolute directory path to create.
----       If path is nil or empty, behavior is to attempt mkdir on that value, which will fail.
----@param mode number|nil Optional. The file mode (permissions) for the directories,
----       e.g., tonumber("755", 8). Defaults to tonumber("755", 8).
----@param callback function|nil Optional. A callback function `function(err)` that is
----       called upon completion. `err` is nil on success, or an error object
----       (table with `code`, `name`, `message`, `errno`) on failure.
-function M.mkdir_async(path, mode, callback)
-	local final_cb = vim.schedule_wrap(callback or function() end)
-	local actual_mode = mode or tonumber("755", 8)
-
-	-- Helper function to attempt creating a single directory,
-	-- and verifies if it's a directory if it already existed.
-	local try_make_single_dir = function(current_path, current_mode, cb_single)
-		cb_single = cb_single or function() end
-
-		uv.fs_mkdir(current_path, current_mode, function(mkdir_err)
-			if not mkdir_err then
-				cb_single(nil) -- Successfully created
-			elseif mkdir_err:find('^EEXIST') then
-				uv.fs_stat(current_path, function(stat_err, stat_data)
-					if stat_err then
-						cb_single(stat_err or mkdir_err)
-					elseif stat_data and stat_data.type == 'directory' then
-						cb_single(nil) -- Exists and is a directory: success
-					else
-						local err_not_dir = ('EEXIST: Path "%s" exists and is not a directory.'):format(current_path)
-						cb_single(err_not_dir)
-					end
-				end)
-			else
-				cb_single(mkdir_err) -- Other mkdir error
-			end
-		end)
+---@param path string
+---@return boolean|nil, string[]|nil
+function M.mkdir_p(path)
+	if vim.fn.isdirectory(path) == 1 then
+		return true, nil
 	end
 
-	-- Generates path segments from root to the full path.
-	-- Assumes p_raw is absolute if it's a non-empty, non-nil string.
-	local get_path_segments_to_create = function(p_raw)
-		-- If p_raw is nil or "", it's not a valid absolute path.
-		-- Return {p_raw} to let fs_mkdir handle the error later.
-		if not p_raw or p_raw == "" then
-			return { p_raw }
-		end
-
-		local norm_path = vim.fs.normalize(p_raw)
-		-- If normalization results in an empty string (e.g. path was invalid relative to root)
-		if norm_path == "" then
-			return { norm_path } -- Let fs_mkdir handle this error.
-		end
-
-		local segments = {}
-		-- Collect parents; vim.fs.parents yields from immediate parent up to (but not including) root's parent.
-		-- Example: /a/b/c -> parents are /a/b, /a, /
-		for parent_segment in vim.fs.parents(norm_path) do
-			table.insert(segments, 1, parent_segment) -- Prepend to get them in root-first order
-		end
-
-		-- If norm_path is a root itself (e.g., "/" or "C:\"), vim.fs.parents yields no segments.
-		-- In this case, the segments list should just be the norm_path itself.
-		if #segments == 0 then
-			-- This implies norm_path is a root (e.g. "/", "C:\") OR it's a relative path like "foo".
-			-- If it's a root (dirname(norm_path) == norm_path), then segments = {norm_path}.
-			-- If it's relative (e.g. "foo"), segments = {"foo"}.
-			-- The function will still attempt to create it; consumer ensures path is absolute for guarantee.
-			table.insert(segments, norm_path)
-		elseif segments[#segments] ~= norm_path then
-			-- Add the normalized_path itself as the last segment if it's not already there.
-			-- (It shouldn't be, as vim.fs.parents doesn't include the path itself).
-			table.insert(segments, norm_path)
-		end
-		return segments
+	local stat = uv.fs_stat(path)
+	if stat and stat.type ~= "directory" then
+		return nil, { "Path exists and is not a directory: " .. path }
 	end
 
-	local segments_to_create
-	-- pcall to catch potential errors from vim.fs.normalize or other path logic if path is malformed.
-	local norm_ok, result = pcall(get_path_segments_to_create, path)
-
-	if not norm_ok then
-		-- Error during path processing (e.g., path was problematic for normalization)
-		vim.defer_fn(function()
-			final_cb('EINVAL: Error processing path: ' .. tostring(result)) -- result is the error message from pcall
-		end, 0)
-		return
+	local mkdir_ok, mkdir_result = pcall(vim.fn.mkdir, path, "p")
+	if not mkdir_ok then
+		return nil, { tostring(mkdir_result) }
 	end
-	segments_to_create = result
-
-	-- With the current get_path_segments_to_create, segments_to_create will always have at least one element.
-	-- If path was nil or "", that element will be nil or "", and try_make_single_dir will subsequently fail.
-
-	local current_segment_idx = 1
-	local function create_next_segment()
-		if current_segment_idx > #segments_to_create then
-			final_cb(nil) -- All segments created successfully
-			return
-		end
-
-		local segment_path = segments_to_create[current_segment_idx]
-
-		-- No need for explicit nil/empty check on segment_path here;
-		-- try_make_single_dir will pass it to uv.fs_mkdir, which will error appropriately.
-
-		try_make_single_dir(segment_path, actual_mode, function(err_single)
-			if err_single then
-				final_cb(err_single) -- Error creating this segment, stop.
-				return
-			end
-			current_segment_idx = current_segment_idx + 1
-			create_next_segment() -- Create the next segment
-		end)
+	if mkdir_result ~= 1 or vim.fn.isdirectory(path) ~= 1 then
+		return nil, { "Could not create directory: " .. path }
 	end
-
-	create_next_segment() -- Start the iterative creation process
+	return true, nil
 end
 
 ---@param path string
----@param callback fun(ok: boolean|nil, errors: string[]|nil, did_create: boolean)
-function M.create_directory(path, callback)
+---@return boolean|nil, string[]|nil, boolean did_create
+function M.create_directory(path)
 	if vim.fn.isdirectory(path) == 1 then
-		callback(true, nil, false)
-		return
+		return true, nil, false
 	end
 
-	M.mkdir_async(path, nil, function(err)
-		if err then
-			callback(nil, { tostring(err) }, false)
-			return
-		end
-		callback(true, nil, true)
-	end)
+	local ok, errors = M.mkdir_p(path)
+	if not ok then
+		return nil, errors, false
+	end
+	return true, nil, true
 end
 
 ---@param path string  -- Absolute path to the directory to check
@@ -288,12 +189,9 @@ function M.create_file(file)
 
 	-- Create the parent directory if necessary
 	local dir = vim.fs.dirname(file)
-	local mkdir_ok, mkdir_result = pcall(vim.fn.mkdir, dir, "p")
+	local mkdir_ok, mkdir_errors = M.mkdir_p(dir)
 	if not mkdir_ok then
-		return nil, { tostring(mkdir_result) }, false
-	end
-	if mkdir_result ~= 1 then
-		return nil, { "Could not create parent directory: " .. dir }, false
+		return nil, mkdir_errors, false
 	end
 	local fd, error = uv.fs_open(file, "w", tonumber('644', 8))
 	if not fd then
@@ -313,7 +211,7 @@ end
 ---@param from string  -- Absolute path of the file or directory to rename
 ---@param to string  -- Absolute path of the new name for the file or directory
 ---@param notify_lsp_clients boolean  -- Whether to notify LSP clients about the rename
----@return boolean|nil, string|nil, string|nil
+---@return boolean|nil, string[]|nil
 function M.rename_path(from, to, notify_lsp_clients)
 	local lsp_changes = {
 		files = { {
@@ -349,7 +247,7 @@ function M.rename_path(from, to, notify_lsp_clients)
 
 	local success, error, message = uv.fs_rename(from, to)
 	if error or not success then
-		return nil, error, message
+		return nil, { message or error or "unknown error" }
 	end
 
 	vim.schedule(function()
@@ -363,7 +261,7 @@ function M.rename_path(from, to, notify_lsp_clients)
 			end
 		end
 	end)
-	return success
+	return true, nil
 end
 
 ---@param paths string[]
@@ -403,9 +301,9 @@ local function copy_path(path, dir, path_type, callback)
 			end)
 	elseif path_type == "directory" then
 		local new_dir = vim.fs.joinpath(dir, vim.fs.basename(path))
-		local mkdir_result = vim.fn.mkdir(new_dir, "p")
-		if mkdir_result ~= 1 then
-			callback(nil, { "Error while creating directory " .. new_dir })
+		local mkdir_ok, mkdir_errors = M.mkdir_p(new_dir)
+		if not mkdir_ok then
+			callback(nil, mkdir_errors)
 			return
 		end
 		return coroutine.wrap(function()
@@ -509,10 +407,10 @@ function M.move_paths(paths, dir, opts, callback)
 			local old_path = vim.fs.normalize(path)
 			local new_path = vim.fs.joinpath(dir, vim.fs.basename(path))
 			vim.schedule(function()
-				local success, rename_error, message = M.rename_path(old_path, new_path, notify_lsp_clients)
-				if rename_error or not success then
+				local success, rename_errors = M.rename_path(old_path, new_path, notify_lsp_clients)
+				if not success then
 					table.insert(errors,
-						("Could not move %s to %s: %s"):format(old_path, new_path, message or rename_error or "unknown error"))
+						("Could not move %s to %s: %s"):format(old_path, new_path, table.concat(rename_errors or {}, "\n")))
 				end
 				done = done + 1
 				return vim.schedule(function() coroutine.resume(co) end)

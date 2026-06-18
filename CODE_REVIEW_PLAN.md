@@ -10,10 +10,10 @@ This document captures code review observations for later triage. It focuses on 
 
 - [x] Add a minimal headless Neovim test harness and initial focused tests.
 - [x] Refresh stale architecture notes now that clipboard shell commands and `vim.ui.open` moved into `utils.lua`.
-- [ ] Standardize `mkdir_async`, `create_file`, `rename_path`, and delete result contracts around `ok, errors`.
+- [x] Standardize directory creation and rename result contracts around `ok, errors`.
 - [x] Move delete filesystem behavior and buffer cleanup into `utils.lua`, keeping confirmation and notifications in `actions.lua`.
-- [ ] Simplify directory creation behind one clear `mkdir_p` or `mkdir_p_async` helper.
-- [ ] Revisit composed clipboard paste utilities after async helper callback shapes are consistent.
+- [x] Simplify directory creation behind one clear `mkdir_p` helper.
+- [ ] Revisit composed clipboard paste utilities now that filesystem helper result shapes are consistent.
 - [ ] Defer host-qualified and UNC-like clipboard URI support until there is a reliable platform-specific resolver or library.
 
 ## Architecture And Maintainability Themes
@@ -23,9 +23,8 @@ This document captures code review observations for later triage. It focuses on 
 - Copy and move operations now use `callback(ok, errors)` where `errors` is always `string[]|nil`.
 - Delete now returns `ok, errors, deleted_count`, where `errors` is always `string[]|nil`.
 - Create now returns `ok, errors, did_create`, where `errors` is always `string[]|nil` and `did_create` reports whether a new file or directory was actually created.
-- Later standardize `mkdir_async` and rename error handling around one result convention as well.
-- Prefer one convention across filesystem helpers, for example `callback(ok, errors)` where `errors` is always `string[]|nil`.
-- Later standardize async helpers around one callback shape, for example `callback(ok, errors, result)`, before composing multi-step operations such as clipboard paste directly inside utilities.
+- Directory creation now uses synchronous `mkdir_p`, which returns `ok, errors` where `errors` is always `string[]|nil`.
+- Rename now returns `ok, errors`, where `errors` is always `string[]|nil`.
 
 ### Centralize Selection Semantics
 
@@ -47,12 +46,12 @@ This document captures code review observations for later triage. It focuses on 
 
 ### Simplify Directory Creation APIs
 
-- `mkdir_async` is complex, while `create_file` uses synchronous `vim.fn.mkdir(dir, "p")`.
-- A single exported `mkdir_p` helper, sync or async, would make the intended API clearer.
+- Directory creation now goes through one synchronous `mkdir_p` helper backed by `vim.fn.mkdir(path, "p")`.
+- `create_directory`, `create_file`, and directory copy setup all reuse `mkdir_p`.
 
 ### Add Focused Tests
 
-- A minimal headless Neovim test harness now covers clipboard URI parsing, CRLF clipboard output, create error/existence handling, copy callback errors, non-empty directory copying, copy selection fallback, and delete utility/action behavior.
+- A minimal headless Neovim test harness now covers clipboard URI parsing, CRLF clipboard output, create error/existence handling, mkdir result contracts, rename result contracts, copy callback errors, non-empty directory copying, copy selection fallback, and delete utility/action behavior.
 - High-value behavioral tests would cover:
 - `create_new` directory creation.
 - Move/copy failures for non-writable destinations.

@@ -288,34 +288,61 @@ end)
 test("create_directory creates and reports existing directories", function()
 	with_tempdir(function(dir)
 		local new_dir = vim.fs.joinpath(dir, "nested", "child")
-		local done = false
-		local result_ok
-		local result_errors
-		local result_did_create
 
-		Utils.create_directory(new_dir, function(ok, errors, did_create)
-			result_ok = ok
-			result_errors = errors
-			result_did_create = did_create
-			done = true
-		end)
-		wait_for(function() return done end)
-		assert_eq(result_ok, true)
-		assert_eq(result_errors, nil)
-		assert_eq(result_did_create, true)
+		local ok, errors, did_create = Utils.create_directory(new_dir)
+		assert_eq(ok, true)
+		assert_eq(errors, nil)
+		assert_eq(did_create, true)
 		assert_eq(vim.fn.isdirectory(new_dir), 1)
 
-		done = false
-		Utils.create_directory(new_dir, function(ok, errors, did_create)
-			result_ok = ok
-			result_errors = errors
-			result_did_create = did_create
-			done = true
-		end)
-		wait_for(function() return done end)
-		assert_eq(result_ok, true)
-		assert_eq(result_errors, nil)
-		assert_eq(result_did_create, false)
+		ok, errors, did_create = Utils.create_directory(new_dir)
+		assert_eq(ok, true)
+		assert_eq(errors, nil)
+		assert_eq(did_create, false)
+	end)
+end)
+
+test("mkdir_p reports ok and errors consistently", function()
+	with_tempdir(function(dir)
+		local new_dir = vim.fs.joinpath(dir, "nested", "child")
+
+		local ok, errors = Utils.mkdir_p(new_dir)
+		assert_eq(ok, true)
+		assert_eq(errors, nil)
+		assert_eq(vim.fn.isdirectory(new_dir), 1)
+
+		ok, errors = Utils.mkdir_p(new_dir)
+		assert_eq(ok, true)
+		assert_eq(errors, nil)
+	end)
+end)
+
+test("mkdir_p reports failures as error lists", function()
+	with_tempdir(function(dir)
+		local parent = vim.fs.joinpath(dir, "parent.txt")
+		write_file(parent, { "not a directory" })
+
+		local ok, errors = Utils.mkdir_p(vim.fs.joinpath(parent, "child"))
+		assert_eq(ok, nil)
+		assert_true(type(errors) == "table" and #errors == 1, "expected one mkdir error")
+	end)
+end)
+
+test("rename_path reports ok and errors consistently", function()
+	with_tempdir(function(dir)
+		local old_path = vim.fs.joinpath(dir, "old.txt")
+		local new_path = vim.fs.joinpath(dir, "new.txt")
+		write_file(old_path, { "old" })
+
+		local ok, errors = Utils.rename_path(old_path, new_path, false)
+		assert_eq(ok, true)
+		assert_eq(errors, nil)
+		assert_eq(vim.fn.filereadable(old_path), 0)
+		assert_eq(vim.fn.readfile(new_path), { "old" })
+
+		ok, errors = Utils.rename_path(old_path, vim.fs.joinpath(dir, "missing.txt"), false)
+		assert_eq(ok, nil)
+		assert_true(type(errors) == "table" and #errors == 1, "expected one rename error")
 	end)
 end)
 
