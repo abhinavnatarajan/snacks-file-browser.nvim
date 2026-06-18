@@ -9,7 +9,7 @@ This document captures code review observations for later triage. It focuses on 
 ## TODO
 
 - [x] Add a minimal headless Neovim test harness and initial focused tests.
-- [ ] Refresh stale architecture notes now that clipboard shell commands and `vim.ui.open` moved into `utils.lua`.
+- [x] Refresh stale architecture notes now that clipboard shell commands and `vim.ui.open` moved into `utils.lua`.
 - [ ] Standardize `mkdir_async`, `create_file`, `rename_path`, and delete result contracts around `ok, errors`.
 - [ ] Move delete filesystem behavior and buffer cleanup into `utils.lua`, keeping confirmation and notifications in `actions.lua`.
 - [ ] Simplify directory creation behind one clear `mkdir_p` or `mkdir_p_async` helper.
@@ -33,9 +33,9 @@ This document captures code review observations for later triage. It focuses on 
 
 ### Clarify The Action/Utility Boundary
 
-- `actions.lua` currently mixes UI intent, confirmation prompts, clipboard shell commands, and direct filesystem operations.
-- `utils.lua` contains lower-level copy, move, create, and rename operations, but the boundary is uneven.
-- Consider having actions collect UI intent and confirmation, while utilities handle filesystem operations with consistent result types.
+- `actions.lua` now delegates system opening, clipboard shell commands, clipboard URI parsing, copy, move, create, and rename helpers to `utils.lua`.
+- The remaining uneven boundary is delete: `actions.lua` still performs direct filesystem deletion and buffer cleanup after collecting confirmation.
+- Keep actions focused on selection, confirmation, notifications, and picker refresh; move remaining filesystem operations into utilities with consistent result types.
 
 ### Clipboard URI Handling
 
@@ -50,9 +50,9 @@ This document captures code review observations for later triage. It focuses on 
 
 ### Add Focused Tests
 
+- A minimal headless Neovim test harness now covers clipboard URI parsing, CRLF clipboard output, copy callback errors, non-empty directory copying, and copy selection fallback.
 - High-value behavioral tests would cover:
 - `create_new` directory creation.
-- Copying non-empty directories.
 - Move/copy failures for non-writable destinations.
 - Command argument parsing for `:SnacksFileBrowser cwd=..`.
 - `save_buffer_as` with paths containing spaces or Ex-special characters.
