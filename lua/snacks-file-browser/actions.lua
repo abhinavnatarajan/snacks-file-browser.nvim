@@ -241,30 +241,31 @@ M.actions.create_new = {
 			if not picker or picker.closed then return end
 
 			-- If the path is a directory we create it and navigate into it.
-			local dir = ""
 			if new_path:sub(-1) == package.config:sub(1, 1) then
-				if vim.fn.isdirectory(new_path) == 1 then
-					Snacks.notify.info("Directory already exists")
-					return
-				end
-				Utils.mkdir_async(new_path, nil, function(err)
-					if err then
-						Snacks.notify.error("Could not create " .. new_path .. "\n" .. err)
+				Utils.create_directory(new_path, function(ok, errors, did_create)
+					if not ok then
+						---@cast errors string[]
+						Snacks.notify.error("Could not create directory:\n" .. table.concat(errors, "\n"))
+						return
+					end
+					if not did_create then
+						Snacks.notify.info("Directory already exists")
 						return
 					end
 					set_picker_cwd(picker, new_path)
 					Snacks.notify.info("Created directory: " .. new_path)
 				end)
 			else
-				if vim.fn.filereadable(new_path) == 1 then
-					Snacks.notify.info("Item already exists")
+				-- Create the file.
+				local dir = vim.fs.dirname(new_path)
+				local create_file_result, errors, did_create = Utils.create_file(new_path)
+				if not create_file_result then
+					---@cast errors string[]
+					Snacks.notify.error("Could not create file:\n" .. table.concat(errors, "\n"))
 					return
 				end
-				-- Create the file.
-				dir = vim.fs.dirname(new_path)
-				local create_file_result, error = Utils.create_file(new_path)
-				if not create_file_result then
-					Snacks.notify(("Could not create file due to %s"):format(error))
+				if not did_create then
+					Snacks.notify.info("Item already exists")
 					return
 				end
 				set_picker_cwd(picker, dir)

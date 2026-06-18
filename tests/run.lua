@@ -250,6 +250,75 @@ test("copy action requires explicit selection", function()
 	assert_match(state.notifications[1].msg, "No items selected")
 end)
 
+test("create_file creates parent directories", function()
+	with_tempdir(function(dir)
+		local file = vim.fs.joinpath(dir, "nested", "child", "file.txt")
+		local ok, errors, did_create = Utils.create_file(file)
+		assert_eq(ok, true)
+		assert_eq(errors, nil)
+		assert_eq(did_create, true)
+		assert_eq(vim.fn.filereadable(file), 1)
+	end)
+end)
+
+test("create_file reports existing files", function()
+	with_tempdir(function(dir)
+		local file = vim.fs.joinpath(dir, "exists.txt")
+		write_file(file, { "exists" })
+
+		local ok, errors, did_create = Utils.create_file(file)
+		assert_eq(ok, true)
+		assert_eq(errors, nil)
+		assert_eq(did_create, false)
+		assert_eq(vim.fn.readfile(file), { "exists" })
+	end)
+end)
+
+test("create_file reports failures consistently", function()
+	with_tempdir(function(dir)
+		local parent = vim.fs.joinpath(dir, "parent.txt")
+		write_file(parent, { "not a directory" })
+
+		local ok, errors = Utils.create_file(vim.fs.joinpath(parent, "child.txt"))
+		assert_eq(ok, nil)
+		assert_true(type(errors) == "table" and #errors == 1, "expected one create error")
+	end)
+end)
+
+test("create_directory creates and reports existing directories", function()
+	with_tempdir(function(dir)
+		local new_dir = vim.fs.joinpath(dir, "nested", "child")
+		local done = false
+		local result_ok
+		local result_errors
+		local result_did_create
+
+		Utils.create_directory(new_dir, function(ok, errors, did_create)
+			result_ok = ok
+			result_errors = errors
+			result_did_create = did_create
+			done = true
+		end)
+		wait_for(function() return done end)
+		assert_eq(result_ok, true)
+		assert_eq(result_errors, nil)
+		assert_eq(result_did_create, true)
+		assert_eq(vim.fn.isdirectory(new_dir), 1)
+
+		done = false
+		Utils.create_directory(new_dir, function(ok, errors, did_create)
+			result_ok = ok
+			result_errors = errors
+			result_did_create = did_create
+			done = true
+		end)
+		wait_for(function() return done end)
+		assert_eq(result_ok, true)
+		assert_eq(result_errors, nil)
+		assert_eq(result_did_create, false)
+	end)
+end)
+
 test("delete_paths deletes files and directories", function()
 	with_tempdir(function(dir)
 		local file = vim.fs.joinpath(dir, "file.txt")

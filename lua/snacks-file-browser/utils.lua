@@ -242,6 +242,23 @@ function M.mkdir_async(path, mode, callback)
 	create_next_segment() -- Start the iterative creation process
 end
 
+---@param path string
+---@param callback fun(ok: boolean|nil, errors: string[]|nil, did_create: boolean)
+function M.create_directory(path, callback)
+	if vim.fn.isdirectory(path) == 1 then
+		callback(true, nil, false)
+		return
+	end
+
+	M.mkdir_async(path, nil, function(err)
+		if err then
+			callback(nil, { tostring(err) }, false)
+			return
+		end
+		callback(true, nil, true)
+	end)
+end
+
 ---@param path string  -- Absolute path to the directory to check
 ---@return boolean|nil, string|nil
 local function is_writeable_dir(path)
@@ -263,23 +280,30 @@ end
 
 ---Create a file at the given path, creating intermediate directories as needed.
 ---@param file string  -- Absolute path to the file to create
----@return boolean|nil, string|nil
+---@return boolean|nil, string[]|nil, boolean did_create
 function M.create_file(file)
+	if vim.fn.filereadable(file) == 1 then
+		return true, nil, false
+	end
+
 	-- Create the parent directory if necessary
 	local dir = vim.fs.dirname(file)
-	local mkdir_result = vim.fn.mkdir(dir, "p")
+	local mkdir_ok, mkdir_result = pcall(vim.fn.mkdir, dir, "p")
+	if not mkdir_ok then
+		return nil, { tostring(mkdir_result) }, false
+	end
 	if mkdir_result ~= 1 then
-		return nil, "Could not create parent directory: " .. dir
+		return nil, { "Could not create parent directory: " .. dir }, false
 	end
 	local fd, error = uv.fs_open(file, "w", tonumber('644', 8))
 	if not fd then
-		return nil, error
+		return nil, { error }, false
 	end
 	_, error = uv.fs_close(fd)
 	if error then
-		return nil, error
+		return nil, { error }, false
 	end
-	return true -- success
+	return true, nil, true
 end
 
 ---Rename a file or directory.

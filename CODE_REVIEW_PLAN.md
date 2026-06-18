@@ -22,7 +22,8 @@ This document captures code review observations for later triage. It focuses on 
 
 - Copy and move operations now use `callback(ok, errors)` where `errors` is always `string[]|nil`.
 - Delete now returns `ok, errors, deleted_count`, where `errors` is always `string[]|nil`.
-- Later standardize create and rename error handling around one result convention as well.
+- Create now returns `ok, errors, did_create`, where `errors` is always `string[]|nil` and `did_create` reports whether a new file or directory was actually created.
+- Later standardize `mkdir_async` and rename error handling around one result convention as well.
 - Prefer one convention across filesystem helpers, for example `callback(ok, errors)` where `errors` is always `string[]|nil`.
 - Later standardize async helpers around one callback shape, for example `callback(ok, errors, result)`, before composing multi-step operations such as clipboard paste directly inside utilities.
 
@@ -51,7 +52,7 @@ This document captures code review observations for later triage. It focuses on 
 
 ### Add Focused Tests
 
-- A minimal headless Neovim test harness now covers clipboard URI parsing, CRLF clipboard output, copy callback errors, non-empty directory copying, copy selection fallback, and delete utility/action behavior.
+- A minimal headless Neovim test harness now covers clipboard URI parsing, CRLF clipboard output, create error/existence handling, copy callback errors, non-empty directory copying, copy selection fallback, and delete utility/action behavior.
 - High-value behavioral tests would cover:
 - `create_new` directory creation.
 - Move/copy failures for non-writable destinations.
