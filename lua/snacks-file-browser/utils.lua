@@ -263,7 +263,7 @@ end
 
 ---Create a file at the given path, creating intermediate directories as needed.
 ---@param file string  -- Absolute path to the file to create
----@return boolean|nil, string|nil, string|nil
+---@return boolean|nil, string|nil
 function M.create_file(file)
 	-- Create the parent directory if necessary
 	local dir = vim.fs.dirname(file)
