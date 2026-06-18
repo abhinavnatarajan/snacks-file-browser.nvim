@@ -3,18 +3,44 @@ local Config = require('snacks-file-browser.config')
 
 local M = {}
 
+local function parse_command_value(key, value)
+	local config_value = Config.get()[key]
+	if value == "true" then return true end
+	if value == "false" then return false end
+	if type(config_value) == "number" then return tonumber(value) end
+	return value
+end
+
+local function parse_command_opts(command_opts)
+	local opts = {}
+	for _, arg in ipairs(command_opts.fargs or {}) do
+		local key, value = arg:match("^([%w_]+)=(.*)$")
+		if key then
+			opts[key] = parse_command_value(key, value)
+		else
+			Snacks.notify.error("Invalid file browser option: " .. arg)
+			return nil
+		end
+	end
+	return opts
+end
+
 ---@param bufnr number Buffer number to save.
----@param paths string | string[] Absolute filename to save the buffer to.
-local function save_as(bufnr, paths)
+---@param items SnacksFileBrowser.Item[] Item containing the absolute filename to save the buffer to.
+local function save_as(bufnr, items)
 	local path
-	if type(paths) == "table" then
-		if #paths > 1 then
+	if type(items) == "table" then
+		if #items > 1 then
 			vim.notify("Multiple paths selected.", vim.log.levels.ERROR)
 			return
 		end
-		path = paths[1]
+		path = items[1] and items[1].file
 	else
-		path = paths
+		path = items
+	end
+	if not path then
+		vim.notify("No path selected.", vim.log.levels.ERROR)
+		return
 	end
 	local escaped_path = vim.fn.fnameescape(path)
 	-- if the buffer name is empty then we can just save it
@@ -73,10 +99,10 @@ function M.save_buffer_as(opts)
 	local bufnr = vim.api.nvim_get_current_buf()
 	opts = vim.tbl_deep_extend('force', opts or {}, {
 		---@param picker SnacksFileBrowser
-		---@param paths string | string[]
-		on_confirm = function(picker, paths)
+		---@param items SnacksFileBrowser.Item[]
+		on_confirm = function(picker, items)
 			picker:close()
-			save_as(bufnr, paths)
+			save_as(bufnr, items)
 		end
 	})
 	M.open(opts)
@@ -93,10 +119,10 @@ function M.save_buffer(opts)
 		local bufnr = vim.api.nvim_get_current_buf()
 		opts = vim.tbl_deep_extend('force', opts or {}, {
 			---@param picker SnacksFileBrowser
-			---@param paths string | string[]
-			on_confirm = function(picker, paths)
+			---@param items SnacksFileBrowser.Item[]
+			on_confirm = function(picker, items)
 				picker:close()
-				save_as(bufnr, paths)
+				save_as(bufnr, items)
 			end
 		})
 		M.open(opts)
@@ -114,8 +140,9 @@ function M.setup(config)
 	Config.set(config or {})
 	vim.api.nvim_create_user_command(
 		'SnacksFileBrowser',
-		function(opts)
-			---@cast opts SnacksFileBrowser.Config
+		function(command_opts)
+			local opts = parse_command_opts(command_opts)
+			if not opts then return end
 			M.open(opts)
 		end,
 		{
@@ -125,8 +152,9 @@ function M.setup(config)
 	)
 	vim.api.nvim_create_user_command(
 		'SnacksFileBrowserSave',
-		function(opts)
-			---@cast opts SnacksFileBrowser.Config
+		function(command_opts)
+			local opts = parse_command_opts(command_opts)
+			if not opts then return end
 			M.save_buffer(opts)
 		end,
 		{
@@ -136,8 +164,9 @@ function M.setup(config)
 	)
 	vim.api.nvim_create_user_command(
 		'SnacksFileBrowserSaveAs',
-		function(opts)
-			---@cast opts SnacksFileBrowser.Config
+		function(command_opts)
+			local opts = parse_command_opts(command_opts)
+			if not opts then return end
 			M.save_buffer_as(opts)
 		end,
 		{

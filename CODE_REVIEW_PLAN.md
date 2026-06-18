@@ -39,13 +39,6 @@ This document captures code review observations for later triage. It focuses on 
 - Passing a string to `table.concat(errors, "\n")` can crash.
 - The non-writable destination branch does not return, so copy processing continues after reporting the error.
 
-### `save_as` Builds Ex Commands Unsafely
-
-- Locations: `lua/snacks-file-browser/init.lua:22`, `lua/snacks-file-browser/init.lua:30`
-- Paths are concatenated directly into Ex commands without `fnameescape` or structured command APIs.
-- Paths with spaces, `|`, quotes, or other Ex-special characters can fail or execute unintended commands.
-- `silent saveas ++p` is also missing a space before the path, producing commands like `silent saveas ++p/tmp/foo`.
-
 ### Selection Fallback Can Operate On Unmatched Items
 
 - Location: `lua/snacks-file-browser/actions.lua:26-34`
@@ -54,30 +47,7 @@ This document captures code review observations for later triage. It focuses on 
 - `confirm` treats `score == 0` as no match, but shared fallback behavior does not.
 - This is especially risky for destructive actions. Typing non-matching input and invoking delete could delete the previously highlighted item instead of doing nothing.
 
-### Command Arguments Are Documented But Not Parsed
-
-- Locations: `README.md:43-52`, `lua/snacks-file-browser/init.lua:115-120`
-- The README documents `:SnacksFileBrowser cwd=..` as a way to override config.
-- The user command callback passes Neovim's command callback object directly into `M.open(opts)`.
-- That object has fields like `args`, `fargs`, and `line1`; it is not parsed into `{ cwd = ".." }`.
-- As written, command arguments such as `cwd=..` do not set the picker cwd.
-
 ## Medium Priority Issues
-
-### `follow_symlinks = false` Is Ignored
-
-- Location: `lua/snacks-file-browser/init.lua:37-51`
-- `--follow` is always included in the default `fd` arguments.
-- The `follow_symlinks` option only controls whether a duplicate `--follow` is appended.
-- The option currently does not disable symlink following.
-
-### `edit_paths` Does Not Reliably Skip Directories
-
-- Location: `lua/snacks-file-browser/utils.lua:10-14`
-- Directories are skipped only when the path string ends with the platform separator.
-- Picker items store `item.file` as normalized absolute paths, which commonly do not retain trailing separators.
-- Selecting a directory and running `edit_selected` can still call `vim.cmd.edit` on the directory.
-- Use item metadata or `uv.fs_stat` rather than string suffixes.
 
 ### Directory Copy Does Not Handle Unreadable Directory Iterators
 
@@ -85,44 +55,6 @@ This document captures code review observations for later triage. It focuses on 
 - `vim.fs.dir(path, { follow = false })` can fail and return `nil, err`.
 - The code immediately iterates `for name, type in children do`, which can attempt to call a nil iterator.
 - This should report a copy error instead.
-
-### Wayland Clipboard Actions Do Not Check Exit Status
-
-- Locations: `lua/snacks-file-browser/actions.lua:300-302`, `lua/snacks-file-browser/actions.lua:311-314`
-- `yank_to_clipboard` always reports success after `vim.system(...):wait()`.
-- It does not inspect `job.code`, `job.signal`, or stderr.
-- Missing `wl-copy`, compositor issues, unsupported MIME types, or command failures can be reported as success.
-- `paste_from_clipboard` partially checks output, but not exit status directly.
-
-### File Creation Uses Executable Permissions
-
-- Location: `lua/snacks-file-browser/utils.lua:176`
-- New files are opened with mode `0755`.
-- Regular files generally should default to `0644`, subject to umask.
-- Current behavior can create executable files unexpectedly.
-
-## Low Priority Issues
-
-### Delete Unselects The Action Argument Instead Of Each Deleted Item
-
-- Location: `lua/snacks-file-browser/actions.lua:400-407`
-- The loop iterates `selected_items` as `it`, but calls `picker.list:unselect(item)`.
-- For multi-selection this unselects the same action argument repeatedly rather than each deleted item.
-- Refresh probably masks this today, but the intent is unclear.
-
-### `show_empty` Appears To Be Dead Configuration
-
-- Locations: `lua/snacks-file-browser/config.lua:6`, `lua/snacks-file-browser/types.lua:7`, `lua/snacks-file-browser/init.lua:36-60`
-- `show_empty` is defined and documented, but the finder does not read it.
-- If it is intended for snacks internals, consider clarifying the name or documentation.
-- If it is a browser option, it currently has no effect.
-
-### `Config.set` Accumulates State Across Setup Calls
-
-- Location: `lua/snacks-file-browser/config.lua:68-70`
-- `Config.set` deep-extends into `current_config` instead of starting from defaults.
-- Calling `setup` multiple times with partial configs leaves previous customizations in place.
-- This may be acceptable for plugin-manager setup, but it is surprising for tests and dynamic reconfiguration.
 
 ## Architecture And Maintainability Themes
 

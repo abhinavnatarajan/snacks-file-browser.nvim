@@ -56,6 +56,7 @@ require('snacks-file-browser').open ({
 
 The file browser can be configured by passing a table to the `require('snacks-file-browser').setup` function.
 The available options and their defaults can be seen in [`types.lua`](lua/snacks-file-browser/types.lua) and [`config.lua`](lua/snacks-file-browser/config.lua).
+The `on_confirm` callback receives the picker and a list of picker items. Each item includes a `file` path and may include `dir = true` for directories.
 
 ## Default Keybindings
 
@@ -109,10 +110,10 @@ The actions below use selected items when selections exist. Unless stated otherw
 | `cd_parent` | Navigate up one directory and refresh the picker. |
 | `smart_cd_parent` | If the input is empty, run `cd_parent`; otherwise, delete one character from the input. |
 | `refresh` | Rerun the finder. |
-| `edit_selected` | Edit selected item(s), or the highlighted item when nothing is selected. Directories are skipped by the default editor callback. |
+| `edit_selected` | Edit selected item(s), or the highlighted item when nothing is selected. Directories are skipped using item metadata. |
 | `sync_cwd` | Set Neovim's tab-local cwd to the picker's current directory with `:tcd`. |
-| `confirm` | Confirm only the highlighted or matched item; it intentionally ignores selected items so you can enter directories without clearing selections. If there is no matching item, it uses the current input: a trailing path separator creates that directory and enters it; otherwise the input path is passed to `on_confirm` as a one-item list. If the item is a directory, the picker enters it. If the item is a file, its path is passed to `on_confirm` as a one-item list. |
-| `multi_confirm` | Pass selected path(s) to `on_confirm`; falls back to the highlighted item when nothing is selected. The default `on_confirm` closes the picker and edits the files. |
+| `confirm` | Confirm only the highlighted or matched item; it intentionally ignores selected items so you can enter directories without clearing selections. If there is no matching item, it uses the current input: a trailing path separator creates that directory and enters it; otherwise a synthetic file item is passed to `on_confirm` as a one-item list. If the item is a directory, the picker enters it. If the item is a file, the item is passed to `on_confirm` as a one-item list. |
+| `multi_confirm` | Pass selected item(s) to `on_confirm`; falls back to the highlighted item when nothing is selected. The default `on_confirm` closes the picker and edits file items, skipping directories. |
 | `rename` | Rename the highlighted item. This action does not use selected items as a fallback source. |
 | `create_new` | Create a new file or directory. If the picker input is empty, prompt for a path; otherwise use the picker input. A trailing path separator creates a directory and enters it; otherwise a file is created and the picker moves to its parent directory. |
 | `yank_paths` | Yank selected path(s), or the highlighted path when nothing is selected, to the active register as linewise text. |

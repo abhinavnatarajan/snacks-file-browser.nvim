@@ -1,6 +1,5 @@
 local Snacks = require('snacks')
 local Utils = require('snacks-file-browser.utils')
-local uv = vim.uv
 local M = {
 	actions = {}
 }
@@ -22,7 +21,7 @@ end
 ---@param picker SnacksFileBrowser
 ---@param item snacks.picker.Item
 ---@param opts table | nil
----@return snacks.picker.Item[] | string[] | nil
+---@return SnacksFileBrowser.Item[] | string[] | nil
 local function resolve_selection(picker, item, opts)
 	opts = vim.tbl_extend('force', { needs_match = false, paths_only = true }, opts or {})
 	local selected = picker:selected({ fallback = false })
@@ -43,16 +42,28 @@ local function resolve_selection(picker, item, opts)
 	return selected
 end
 
+local function notify_system_failure(command, job)
+	if (job.code or 0) ~= 0 then
+		Snacks.notify.error(command .. " failed with exit code " .. tostring(job.code))
+		return true
+	end
+	if (job.signal or 0) ~= 0 then
+		Snacks.notify.error(command .. " stopped by signal " .. tostring(job.signal))
+		return true
+	end
+	return false
+end
+
 
 M.actions.edit_selected = {
 	name = "edit_selected",
 	desc = "Edit selected",
 	---@param picker SnacksFileBrowser
-	---@param item snacks.picker.Item
+	---@param item SnacksFileBrowser.Item
 	action = function(picker, item)
-		local selected_paths = resolve_selection(picker, item)
-		if not selected_paths then return end
-		Utils.edit_paths(picker, selected_paths)
+		local selected_items = resolve_selection(picker, item, { paths_only = false })
+		if not selected_items then return end
+		Utils.edit_paths(picker, selected_items)
 	end
 }
 
@@ -93,11 +104,11 @@ M.actions.refresh = {
 
 M.actions.multi_confirm = {
 	name = "multi_confirm",
-	desc = "Confirm selected files",
+	desc = "Confirm selected items",
 	---@param picker SnacksFileBrowser
 	action = function(picker, item)
 		local callback = picker.opts.on_confirm
-		local selected_items = resolve_selection(picker, item)
+		local selected_items = resolve_selection(picker, item, { paths_only = false })
 		if not selected_items then return end
 		callback(picker, selected_items)
 	end
@@ -142,7 +153,7 @@ M.actions.confirm = {
 	name = "confirm",
 	desc = "Confirm selection",
 	---@param picker SnacksFileBrowser
-	---@param item snacks.picker.Item
+	---@param item SnacksFileBrowser.Item
 	action = function(picker, item)
 		local callback = picker.opts.on_confirm
 
@@ -164,24 +175,17 @@ M.actions.confirm = {
 					set_picker_cwd(picker, new_path)
 				end)
 			else
-				callback(picker, { new_path })
+				callback(picker, { { file = new_path, text = input } })
 			end
 			return
 		end
 
 		-- Case 2: A valid item is in in the list
-		local path = item.file ---@type string
-		uv.fs_stat(path, vim.schedule_wrap(function(err, stat)
-			if err then
-				Snacks.notify.error("Could not stat file: " .. err)
-				return
-			end
-			if stat.type == 'directory' then
-				set_picker_cwd(picker, path)
-			elseif stat.type == "file" then
-				callback(picker, { path })
-			end
-		end))
+		if item.dir then
+			set_picker_cwd(picker, item.file)
+		else
+			callback(picker, { item })
+		end
 	end
 }
 ---Pass the highlighted or matched item to a callback function.
@@ -298,7 +302,8 @@ M.actions.yank_to_clipboard = {
 		-- TODO: needs windows and macos equivalents
 		local uri_list = vim.iter(selected_paths):map(vim.uri_from_fname):join('\n')
 		local cmd = { 'wl-copy', '-t', 'text/uri-list', uri_list }
-		vim.system(cmd, { stderr = false }):wait()
+		local job = vim.system(cmd, { stderr = false }):wait()
+		if notify_system_failure('wl-copy', job) then return end
 		Snacks.notify.info("Yanked " .. tostring(#selected_paths) .. " items to clipboard")
 	end
 }
@@ -309,8 +314,9 @@ M.actions.paste_from_clipboard = {
 	action = function(picker)
 		-- Get list of items to paste separated by '\r\n'
 		local job = vim.system({ 'wl-paste', '-t', 'text/uri-list', '-n' }, { text = true }):wait()
-		local stderr, stdout = job.stderr, job.stdout
-		if not stdout or (stdout == "" and #stderr > 0) then
+		if notify_system_failure('wl-paste', job) then return end
+		local stdout = job.stdout
+		if not stdout or stdout == "" then
 			Snacks.notify.error("No files in clipboard")
 			return
 		end
@@ -404,7 +410,6 @@ M.actions.delete = {
 						if ok then
 							Snacks.bufdelete({ file = path, force = true, wipe = true })
 							num_deleted = num_deleted + 1
-							picker.list:unselect(item)
 						else
 							Snacks.notify.error("Delete failed: " .. err)
 						end

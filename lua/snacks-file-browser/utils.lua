@@ -2,21 +2,20 @@ local M = {}
 local uv = vim.uv
 
 ---@param picker SnacksFileBrowser
----@param paths string[]
-function M.edit_paths(picker, paths)
+---@param items SnacksFileBrowser.Item[]
+function M.edit_paths(picker, items)
 	picker:norm(function()
 		picker:close()
 	end)
-	local os_pathsep = package.config:sub(1, 1)
-	local fnames = vim.iter(paths)
-		:filter(function(path)
-			return not path:sub(-1):find(os_pathsep)
-		end):totable()
-	vim.iter(fnames):map(function(fname)
+	local fnames = vim.iter(items)
+		:filter(function(item) return not item.dir end)
+		:map(function(item) return item.file end)
+		:totable()
+	for _, fname in ipairs(fnames) do
 		vim.schedule(function()
-			vim.cmd.edit(fname)
+			vim.cmd.edit(vim.fn.fnameescape(fname))
 		end)
-	end)
+	end
 end
 
 ---Update the title of the picker, truncating if required.
