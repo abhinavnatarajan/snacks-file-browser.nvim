@@ -63,7 +63,7 @@ function M.open_paths_system(paths)
 	local errors = vim.iter(paths):map(function(path)
 		local systemobj, err = vim.ui.open(path)
 		if not systemobj then
-			return err or "Could not open " .. path
+			return err or ("Could not open " .. path)
 		end
 	end):filter(function(err)
 		return err ~= nil
@@ -96,7 +96,7 @@ function M.get_clipboard_paths()
 		return nil, { "No files in clipboard" }
 	end
 	local paths = {}
-	local errors = {}
+	errors = {}
 	for _, uri in ipairs(vim.split(stdout, '\n', { trimempty = true })) do
 		uri = uri:gsub('\r$', '')
 		if uri:sub(1, 1) ~= '#' then

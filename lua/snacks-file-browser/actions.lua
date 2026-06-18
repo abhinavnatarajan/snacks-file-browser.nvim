@@ -154,6 +154,7 @@ M.actions.open_system = {
 		if not selected_paths then return end
 		local ok, errors = Utils.open_paths_system(selected_paths)
 		if not ok then
+			---@cast errors string[]
 			Snacks.notify.error("Errors while opening items:\n" .. table.concat(errors, "\n"))
 			return
 		end
@@ -320,6 +321,7 @@ M.actions.yank_to_clipboard = {
 		if not selected_paths then return end
 		local ok, errors = Utils.yank_paths_to_clipboard(selected_paths)
 		if not ok then
+			---@cast errors string[]
 			Snacks.notify.error("Error while yanking items:\n" .. table.concat(errors, "\n"))
 			return
 		end
@@ -333,6 +335,7 @@ M.actions.paste_from_clipboard = {
 	action = function(picker)
 		local paths, errors = Utils.get_clipboard_paths()
 		if not paths then
+			---@cast errors string[]
 			Snacks.notify.error("Error while reading clipboard:\n" .. table.concat(errors, "\n"))
 			return
 		end
@@ -428,6 +431,7 @@ M.actions.delete = {
 				local paths = vim.iter(selected_items):map(function(it) return it.file end):totable()
 				local ok, errors, deleted_count = Utils.delete_paths(paths)
 				if not ok then
+					---@cast errors string[]
 					Snacks.notify.error("Error while deleting items:\n" .. table.concat(errors, "\n"))
 				end
 				if deleted_count > 0 then
