@@ -62,19 +62,6 @@ local function resolve_selection(picker, item, opts)
 	return selected
 end
 
-local function notify_system_failure(command, job)
-	if (job.code or 0) ~= 0 then
-		Snacks.notify.error(command .. " failed with exit code " .. tostring(job.code))
-		return true
-	end
-	if (job.signal or 0) ~= 0 then
-		Snacks.notify.error(command .. " stopped by signal " .. tostring(job.signal))
-		return true
-	end
-	return false
-end
-
-
 M.actions.edit_selected = {
 	name = "edit_selected",
 	desc = "Edit selected",
@@ -165,22 +152,12 @@ M.actions.open_system = {
 			notify = true,
 		})
 		if not selected_paths then return end
-		local errors = vim.iter(selected_paths):map(function(path)
-			local systemobj, err = vim.ui.open(path)
-			if not systemobj then
-				return err
-			else
-				return nil
-			end
-		end):filter(function(it)
-			return it ~= nil
-		end):totable()
-		if #errors > 0 then
-			local errmsgs = vim.iter(errors):join("\n")
-			Snacks.notify.error("Errors while opening items: " .. errmsgs)
+		local ok, errors = Utils.open_paths_system(selected_paths)
+		if not ok then
+			Snacks.notify.error("Errors while opening items:\n" .. table.concat(errors, "\n"))
 			return
 		end
-		Snacks.notify.info("Opened " .. tostring(#selected_paths - #errors) .. " items")
+		Snacks.notify.info("Opened " .. tostring(#selected_paths) .. " items")
 	end
 }
 
@@ -341,11 +318,11 @@ M.actions.yank_to_clipboard = {
 			notify = true,
 		})
 		if not selected_paths then return end
-		-- TODO: needs windows and macos equivalents
-		local uri_list = vim.iter(selected_paths):map(vim.uri_from_fname):join('\n')
-		local cmd = { 'wl-copy', '-t', 'text/uri-list', uri_list }
-		local job = vim.system(cmd, { stderr = false }):wait()
-		if notify_system_failure('wl-copy', job) then return end
+		local ok, errors = Utils.yank_paths_to_clipboard(selected_paths)
+		if not ok then
+			Snacks.notify.error("Error while yanking items:\n" .. table.concat(errors, "\n"))
+			return
+		end
 		Snacks.notify.info("Yanked " .. tostring(#selected_paths) .. " items to clipboard")
 	end
 }
@@ -354,16 +331,11 @@ M.actions.paste_from_clipboard = {
 	name = "paste_from_clipboard",
 	desc = "Paste files from system clipboard",
 	action = function(picker)
-		-- Get list of items to paste separated by '\r\n'
-		local job = vim.system({ 'wl-paste', '-t', 'text/uri-list', '-n' }, { text = true }):wait()
-		if notify_system_failure('wl-paste', job) then return end
-		local stdout = job.stdout
-		if not stdout or stdout == "" then
-			Snacks.notify.error("No files in clipboard")
+		local paths, errors = Utils.get_clipboard_paths()
+		if not paths then
+			Snacks.notify.error("Error while reading clipboard:\n" .. table.concat(errors, "\n"))
 			return
 		end
-		local uris = vim.split(stdout, '\n', { trimempty = true })
-		local paths = vim.iter(uris):map(vim.uri_to_fname):totable()
 		Utils.copy_paths(paths, picker:cwd(), function(success, errors)
 			if not success then
 				Snacks.notify.error("Error while copying items:\n" .. table.concat(errors, "\n"))

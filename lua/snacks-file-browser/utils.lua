@@ -10,6 +10,112 @@ function M.edit_paths(paths)
 	end
 end
 
+local function system_errors(command, job)
+	if (job.code or 0) ~= 0 then
+		return { command .. " failed with exit code " .. tostring(job.code) }
+	end
+	if (job.signal or 0) ~= 0 then
+		return { command .. " stopped by signal " .. tostring(job.signal) }
+	end
+end
+
+local function file_uri_to_fname(uri)
+	if not uri:match("^[Ff][Ii][Ll][Ee]:") then
+		return nil, "Unsupported clipboard URI scheme: " .. uri
+	end
+
+	local rest = uri:sub(6)
+	if not rest:match("^//") then
+		local ok, path = pcall(vim.uri_to_fname, uri)
+		if ok and path then
+			return path
+		end
+		return nil, "Invalid clipboard URI: " .. uri
+	end
+
+	local authority, path = rest:match("^//([^/]*)(.*)$")
+	authority = (authority or ""):lower()
+	path = path or ""
+	if authority == "" then
+		if path:match("^//") then
+			return nil, "Unsupported non-local clipboard URI: " .. uri
+		end
+		local ok, fname = pcall(vim.uri_to_fname, uri)
+		if ok and fname then
+			return fname
+		end
+		return nil, "Invalid clipboard URI: " .. uri
+	end
+	if authority == "localhost" then
+		local ok, fname = pcall(vim.uri_to_fname, "file://" .. path)
+		if ok and fname then
+			return fname
+		end
+		return nil, "Invalid clipboard URI: " .. uri
+	end
+	return nil, "Unsupported non-local clipboard URI: " .. uri
+end
+
+---@param paths string[]
+---@return boolean|nil, string[]|nil
+function M.open_paths_system(paths)
+	local errors = vim.iter(paths):map(function(path)
+		local systemobj, err = vim.ui.open(path)
+		if not systemobj then
+			return err or "Could not open " .. path
+		end
+	end):filter(function(err)
+		return err ~= nil
+	end):totable()
+
+	return #errors == 0 and true or nil, #errors > 0 and errors or nil
+end
+
+---@param paths string[]
+---@return boolean|nil, string[]|nil
+function M.yank_paths_to_clipboard(paths)
+	local uri_list = vim.iter(paths):map(vim.uri_from_fname):join('\r\n') .. '\r\n'
+	local job = vim.system({ 'wl-copy', '-t', 'text/uri-list', uri_list }, { stderr = false }):wait()
+	local errors = system_errors('wl-copy', job)
+	if errors then
+		return nil, errors
+	end
+	return true
+end
+
+---@return string[]|nil, string[]|nil
+function M.get_clipboard_paths()
+	local job = vim.system({ 'wl-paste', '-t', 'text/uri-list', '-n' }, { text = true }):wait()
+	local errors = system_errors('wl-paste', job)
+	if errors then
+		return nil, errors
+	end
+	local stdout = job.stdout
+	if not stdout or stdout == "" then
+		return nil, { "No files in clipboard" }
+	end
+	local paths = {}
+	local errors = {}
+	for _, uri in ipairs(vim.split(stdout, '\n', { trimempty = true })) do
+		uri = uri:gsub('\r$', '')
+		if uri:sub(1, 1) ~= '#' then
+			local path, uri_error = file_uri_to_fname(uri)
+			if path then
+				table.insert(paths, path)
+			else
+				table.insert(errors, uri_error)
+			end
+		end
+	end
+	if #errors > 0 then
+		return nil, errors
+	end
+	if #paths == 0 then
+		return nil, { "No files in clipboard" }
+	end
+	return paths
+end
+
 ---Update the title of the picker, truncating if required.
 function M.update_title(picker, title)
 	local len = picker.input.win:size().width - 4

@@ -13,6 +13,7 @@ This document captures code review observations for later triage. It focuses on 
 - Copy and move operations now use `callback(ok, errors)` where `errors` is always `string[]|nil`.
 - Later standardize create, delete, and rename error handling around one result convention as well.
 - Prefer one convention across filesystem helpers, for example `callback(ok, errors)` where `errors` is always `string[]|nil`.
+- Later standardize async helpers around one callback shape, for example `callback(ok, errors, result)`, before composing multi-step operations such as clipboard paste directly inside utilities.
 
 ### Centralize Selection Semantics
 
@@ -25,6 +26,12 @@ This document captures code review observations for later triage. It focuses on 
 - `actions.lua` currently mixes UI intent, confirmation prompts, clipboard shell commands, and direct filesystem operations.
 - `utils.lua` contains lower-level copy, move, create, and rename operations, but the boundary is uneven.
 - Consider having actions collect UI intent and confirmation, while utilities handle filesystem operations with consistent result types.
+
+### Clipboard URI Handling
+
+- Clipboard paste currently accepts only local `file:` URIs with no authority or explicit `localhost` authority.
+- Revisit whether a platform-specific utility or library can reliably resolve host-qualified file URIs or UNC-like forms to local paths.
+- Avoid relying on `vim.uri_to_fname` alone for locality checks; it does not fully resolve these cases.
 
 ### Simplify Directory Creation APIs
 
