@@ -4,13 +4,7 @@ This document captures code review observations for later triage. It focuses on 
 
 ## High Priority Issues
 
-### Selection Fallback Can Operate On Unmatched Items
-
-- Location: `lua/snacks-file-browser/actions.lua:26-34`
-- `resolve_selection` has a `needs_match` option, but no current action passes `needs_match = true`.
-- Actions such as `edit_selected`, `multi_confirm`, `open_system`, `yank_paths`, `yank_to_clipboard`, and `delete` can fall back to `item` even if `item.score == 0`.
-- `confirm` treats `score == 0` as no match, but shared fallback behavior does not.
-- This is especially risky for destructive actions. Typing non-matching input and invoking delete could delete the previously highlighted item instead of doing nothing.
+- None currently tracked.
 
 ## Architecture And Maintainability Themes
 
@@ -22,9 +16,9 @@ This document captures code review observations for later triage. It focuses on 
 
 ### Centralize Selection Semantics
 
-- `resolve_selection` centralizes some fallback behavior, but `copy` and `move` bypass it.
-- `needs_match` exists but is unused.
-- Destructive and external actions should have explicit semantics for selected items, highlighted fallback, and unmatched picker items.
+- `resolve_selection` requires every caller to explicitly declare fallback, output, and notification behavior.
+- `accept` has special input/highlight handling and intentionally does not use shared selected-item fallback semantics.
+- `copy` and `move` explicitly require selected items because falling back to the highlighted item would copy or move it into its current directory.
 
 ### Clarify The Action/Utility Boundary
 

@@ -19,20 +19,40 @@ local function set_picker_cwd(picker, new_cwd)
 end
 
 ---@param picker SnacksFileBrowser
----@param item snacks.picker.Item
----@param opts table | nil
+---@param item snacks.picker.Item | nil
+---@param opts { fallback: "none"|"highlighted"|"matched", output: "items"|"paths", notify: boolean }
 ---@return SnacksFileBrowser.Item[] | string[] | nil
 local function resolve_selection(picker, item, opts)
-	opts = vim.tbl_extend('force', { needs_match = false, paths_only = true }, opts or {})
+	if type(opts) ~= "table" then
+		error("resolve_selection requires explicit options", 2)
+	end
+	if opts.fallback ~= "none" and opts.fallback ~= "highlighted" and opts.fallback ~= "matched" then
+		error("resolve_selection requires fallback to be 'none', 'highlighted', or 'matched'", 2)
+	end
+	if opts.output ~= "items" and opts.output ~= "paths" then
+		error("resolve_selection requires output to be 'items' or 'paths'", 2)
+	end
+	if type(opts.notify) ~= "boolean" then
+		error("resolve_selection requires notify to be a boolean", 2)
+	end
+
 	local selected = picker:selected({ fallback = false })
 	if #selected == 0 then
-		if not item or (item.score == 0 and opts.needs_match) then
-			Snacks.notify.error("No items selected.")
+		if opts.fallback == "none" then
+			if opts.notify then Snacks.notify.error("No items selected.") end
+			return
+		end
+		if not item then
+			if opts.notify then Snacks.notify.error("No items selected.") end
+			return
+		end
+		if opts.fallback == "matched" and item.score == 0 then
+			if opts.notify then Snacks.notify.error("No matching item.") end
 			return
 		end
 		selected = { item }
 	end
-	if opts.paths_only then
+	if opts.output == "paths" then
 		---@type string[]
 		local paths = vim.iter(selected)
 			:map(function(it) return it.file end)
@@ -61,9 +81,16 @@ M.actions.edit_selected = {
 	---@param picker SnacksFileBrowser
 	---@param item SnacksFileBrowser.Item
 	action = function(picker, item)
-		local selected_items = resolve_selection(picker, item, { paths_only = false })
-		if not selected_items then return end
-		Utils.edit_paths(picker, selected_items)
+		local selected_paths = resolve_selection(picker, item, {
+			fallback = "highlighted",
+			output = "paths",
+			notify = true,
+		})
+		if not selected_paths then return end
+		picker:norm(function()
+			picker:close()
+		end)
+		Utils.edit_paths(selected_paths)
 	end
 }
 
@@ -108,7 +135,11 @@ M.actions.multi_confirm = {
 	---@param picker SnacksFileBrowser
 	action = function(picker, item)
 		local callback = picker.opts.on_confirm
-		local selected_items = resolve_selection(picker, item, { paths_only = false })
+		local selected_items = resolve_selection(picker, item, {
+			fallback = "highlighted",
+			output = "items",
+			notify = true,
+		})
 		if not selected_items then return end
 		callback(picker, selected_items)
 	end
@@ -128,7 +159,11 @@ M.actions.open_system = {
 	desc = "Open selected items in system",
 	---@param picker SnacksFileBrowser
 	action = function(picker, item)
-		local selected_paths = resolve_selection(picker, item)
+		local selected_paths = resolve_selection(picker, item, {
+			fallback = "highlighted",
+			output = "paths",
+			notify = true,
+		})
 		if not selected_paths then return end
 		local errors = vim.iter(selected_paths):map(function(path)
 			local systemobj, err = vim.ui.open(path)
@@ -149,9 +184,9 @@ M.actions.open_system = {
 	end
 }
 
-M.actions.confirm = {
-	name = "confirm",
-	desc = "Confirm selection",
+M.actions.accept = {
+	name = "accept",
+	desc = "Accept input or highlighted item",
 	---@param picker SnacksFileBrowser
 	---@param item SnacksFileBrowser.Item
 	action = function(picker, item)
@@ -281,7 +316,11 @@ M.actions.yank_paths = {
 	---@param picker SnacksFileBrowser
 	---@param item snacks.picker.Item
 	action = function(picker, item)
-		local selected_paths = resolve_selection(picker, item)
+		local selected_paths = resolve_selection(picker, item, {
+			fallback = "highlighted",
+			output = "paths",
+			notify = true,
+		})
 		if not selected_paths then return end
 		local value = table.concat(selected_paths, "\n")
 		vim.fn.setreg(vim.v.register or "+", value, "l")
@@ -296,7 +335,11 @@ M.actions.yank_to_clipboard = {
 	---@param picker SnacksFileBrowser
 	---@param item snacks.picker.Item
 	action = function(picker, item)
-		local selected_paths = resolve_selection(picker, item)
+		local selected_paths = resolve_selection(picker, item, {
+			fallback = "highlighted",
+			output = "paths",
+			notify = true,
+		})
 		if not selected_paths then return end
 		-- TODO: needs windows and macos equivalents
 		local uri_list = vim.iter(selected_paths):map(vim.uri_from_fname):join('\n')
@@ -339,12 +382,13 @@ M.actions.copy = {
 	name = "copy",
 	desc = "Copy selected items",
 	---@param picker SnacksFileBrowser
-	action = function(picker)
-		---@type string[]
-		local files = vim.iter(picker:selected({ fallback = false }))
-			:map(function(item) return item.file end)
-			:totable()
-		if #files == 0 then return end
+	action = function(picker, item)
+		local files = resolve_selection(picker, item, {
+			fallback = "none",
+			output = "paths",
+			notify = true,
+		})
+		if not files then return end
 		local dir = picker:cwd()
 		Utils.copy_paths(files, dir, function(success, errors)
 			if not success then
@@ -364,10 +408,13 @@ M.actions.move = {
 	name = "move",
 	desc = "Move selected items here",
 	---@param picker SnacksFileBrowser
-	action = function(picker)
-		local files = vim.iter(picker:selected({ fallback = false }))
-			:map(function(item) return item.file end)
-			:totable()
+	action = function(picker, item)
+		local files = resolve_selection(picker, item, {
+			fallback = "none",
+			output = "paths",
+			notify = true,
+		})
+		if not files then return end
 		local dir = picker:cwd()
 		Utils.move_paths(files, dir, {
 			notify_lsp_clients = picker.opts.notify_lsp_clients_on_rename or false
@@ -390,7 +437,11 @@ M.actions.delete = {
 	desc = "Delete selected items",
 	---@param picker SnacksFileBrowser
 	action = function(picker, item)
-		local selected_items = resolve_selection(picker, item, { paths_only = false })
+		local selected_items = resolve_selection(picker, item, {
+			fallback = "highlighted",
+			output = "items",
+			notify = true,
+		})
 		if not selected_items then return end
 		---@cast selected_items snacks.picker.Item[]
 		local message = #selected_items == 1 and selected_items[1].file or #selected_items .. " items"

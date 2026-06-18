@@ -66,8 +66,8 @@ The `on_confirm` callback receives the picker and a list of picker items. Each i
 | ---        | ---    | ---                                                                            |
 | `<M-n>`    | `n, i` | Create a new file or directory.                                                |
 | `<M-CR>`   | `n, i` | Confirm selected item(s).                                                      |
-| `<M-e>`    | `n, i` | Edit the selected item(s), skipping directories.                               |
-| `<CR>`     | `n, i` | Confirm the highlighted or matched item.                                       |
+| `<M-e>`    | `n, i` | Edit selected or highlighted path(s).                                          |
+| `<CR>`     | `n, i` | Accept the input or highlighted item.                                          |
 | `<BS>`     | `n, i` | Navigate up one directory if the input is empty, otherwise delete a character. |
 | `<M-BS>`   | `n, i` | Navigate up one directory.                                                     |
 | `<C-]>`    | `n, i` | Set Neovim's tab-local cwd to the picker's directory.                          |
@@ -86,8 +86,8 @@ The `on_confirm` callback receives the picker and a list of picker items. Each i
 | Keybinding | Modes  | Action                                                               |
 | ---        | ---    | ---                                                                  |
 | `<M-n>`    | `n, i` | Create a new file or directory.                                      |
-| `<M-e>`    | `n, x` | Edit the selected item(s), skipping directories.                     |
-| `<CR>`     | `n, x` | Confirm the highlighted or matched item.                             |
+| `<M-e>`    | `n, x` | Edit selected or highlighted path(s).                                |
+| `<CR>`     | `n, x` | Accept the input or highlighted item.                                |
 | `<M-CR>`   | `n, x` | Confirm selected item(s).                                            |
 | `<BS>`     | `n`    | Navigate up one directory.                                           |
 | `<C-]>`    | `n`    | Set Neovim's tab-local cwd to the picker's directory.                |
@@ -103,16 +103,16 @@ The `on_confirm` callback receives the picker and a list of picker items. Each i
 
 ## Available Actions
 
-The actions below use selected items when selections exist. Unless stated otherwise, actions that operate on selected items fall back to the highlighted item when nothing is selected. If there are no selected items and no highlighted item, they show an error and do nothing.
+The actions below use selected items when selections exist. Unless stated otherwise, actions that operate on selected items fall back to the highlighted item when nothing is selected, even if the highlighted item does not match the current input. If there are no selected items and no highlighted item, they show an error and do nothing. The `accept` action is the exception: it ignores selected items and treats an unmatched highlighted item as a request to create from the current input.
 
 | Action | Behaviour |
 | --- | --- |
 | `cd_parent` | Navigate up one directory and refresh the picker. |
 | `smart_cd_parent` | If the input is empty, run `cd_parent`; otherwise, delete one character from the input. |
 | `refresh` | Rerun the finder. |
-| `edit_selected` | Edit selected item(s), or the highlighted item when nothing is selected. Directories are skipped using item metadata. |
+| `edit_selected` | Edit selected path(s), or the highlighted path when nothing is selected, and close the picker. |
 | `sync_cwd` | Set Neovim's tab-local cwd to the picker's current directory with `:tcd`. |
-| `confirm` | Confirm only the highlighted or matched item; it intentionally ignores selected items so you can enter directories without clearing selections. If there is no matching item, it uses the current input: a trailing path separator creates that directory and enters it; otherwise a synthetic file item is passed to `on_confirm` as a one-item list. If the item is a directory, the picker enters it. If the item is a file, the item is passed to `on_confirm` as a one-item list. |
+| `accept` | Accept only the highlighted or matched item; it intentionally ignores selected items so you can enter directories without clearing selections. If there is no matching item, it uses the current input: a trailing path separator creates that directory and enters it; otherwise a synthetic file item is passed to `on_confirm` as a one-item list. If the item is a directory, the picker enters it. If the item is a file, the item is passed to `on_confirm` as a one-item list. |
 | `multi_confirm` | Pass selected item(s) to `on_confirm`; falls back to the highlighted item when nothing is selected. The default `on_confirm` closes the picker and edits file items, skipping directories. |
 | `rename` | Rename the highlighted item. This action does not use selected items as a fallback source. |
 | `create_new` | Create a new file or directory. If the picker input is empty, prompt for a path; otherwise use the picker input. A trailing path separator creates a directory and enters it; otherwise a file is created and the picker moves to its parent directory. |

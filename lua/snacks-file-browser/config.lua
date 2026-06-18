@@ -1,6 +1,19 @@
 local Actions = require("snacks-file-browser.actions")
 local Utils = require("snacks-file-browser.utils")
 
+---@param picker SnacksFileBrowser
+---@param items SnacksFileBrowser.Item[]
+local function default_on_confirm(picker, items)
+	local paths = vim.iter(items)
+		:filter(function(item) return not item.dir end)
+		:map(function(item) return item.file end)
+		:totable()
+	picker:norm(function()
+		picker:close()
+	end)
+	Utils.edit_paths(paths)
+end
+
 ---@type SnacksFileBrowser.Config
 local default_config = {
 	show_empty = true,
@@ -10,7 +23,7 @@ local default_config = {
 	supports_live = true,
 	notify_lsp_clients_on_rename = true,
 	actions = Actions.actions,
-	on_confirm = Utils.edit_paths,
+	on_confirm = default_on_confirm,
 	format = 'file',
 	---@param picker SnacksFileBrowser
 	on_show = function(picker)
@@ -23,7 +36,7 @@ local default_config = {
 				["<M-n>"] = { "create_new", mode = { "n", "i" } },
 				["<M-CR>"] = { "multi_confirm", mode = { "n", "i" } },
 				["<M-e>"] = { "edit_selected", mode = { "n", "i" } },
-				["<CR>"] = { "confirm", mode = { "n", "i" } },
+				["<CR>"] = { "accept", mode = { "n", "i" } },
 				["<BS>"] = { "smart_cd_parent", mode = { "n", "i" } },
 				["<M-BS>"] = { "cd_parent", mode = { "n", "i" } },
 				["<C-]>"] = { "sync_cwd", mode = { "n", "i" } },
@@ -42,7 +55,7 @@ local default_config = {
 			keys = {
 				["<M-n>"] = { "create_new", mode = { "n", "i" } },
 				["<M-e>"] = { "edit_selected", mode = { "n", "x" } },
-				["<CR>"] = { "confirm", mode = { "n", "x" } },
+				["<CR>"] = { "accept", mode = { "n", "x" } },
 				["<M-CR>"] = { "multi_confirm", mode = { "n", "x" } },
 				["<BS>"] = { "cd_parent", mode = { "n" } },
 				["<C-]>"] = { "sync_cwd", mode = { "n" } },

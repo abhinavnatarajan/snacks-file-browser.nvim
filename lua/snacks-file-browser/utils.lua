@@ -1,17 +1,9 @@
 local M = {}
 local uv = vim.uv
 
----@param picker SnacksFileBrowser
----@param items SnacksFileBrowser.Item[]
-function M.edit_paths(picker, items)
-	picker:norm(function()
-		picker:close()
-	end)
-	local fnames = vim.iter(items)
-		:filter(function(item) return not item.dir end)
-		:map(function(item) return item.file end)
-		:totable()
-	for _, fname in ipairs(fnames) do
+---@param paths string[]
+function M.edit_paths(paths)
+	for _, fname in ipairs(paths) do
 		vim.schedule(function()
 			vim.cmd.edit(vim.fn.fnameescape(fname))
 		end)
