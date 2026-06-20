@@ -41,7 +41,8 @@ end
 
 local function assert_eq(actual, expected, message)
 	if not vim.deep_equal(actual, expected) then
-		fail((message or "values differ") .. "\nexpected: " .. vim.inspect(expected) .. "\nactual: " .. vim.inspect(actual))
+		fail((message or "values differ") ..
+			"\nexpected: " .. vim.inspect(expected) .. "\nactual: " .. vim.inspect(actual))
 	end
 end
 
@@ -132,7 +133,8 @@ test("get_clipboard_paths parses local file URI forms", function()
 				return Utils.get_clipboard_paths()
 			end
 
-			local paths, errors = clipboard("# comment\r\n" .. vim.uri_from_fname(first) .. "\r\n" .. vim.uri_from_fname(second) .. "\n")
+			local paths, errors = clipboard("# comment\r\n" ..
+				vim.uri_from_fname(first) .. "\r\n" .. vim.uri_from_fname(second) .. "\n")
 			assert_eq(paths, { first, second })
 			assert_eq(errors, nil)
 
@@ -465,7 +467,13 @@ for _, entry in ipairs(tests) do
 end
 
 if failures > 0 then
-	vim.api.nvim_err_writeln(string.format("%d test(s) failed", failures))
+	vim.api.nvim_echo(
+		{
+			{ string.format("%d test(s) failed", failures) },
+		},
+		true,
+		{ err = true }
+	)
 	vim.cmd("cq")
 end
 

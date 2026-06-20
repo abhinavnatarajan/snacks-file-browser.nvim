@@ -315,6 +315,9 @@ M.actions.yank_to_clipboard = {
 	---@param picker SnacksFileBrowser
 	---@param item snacks.picker.Item
 	action = function(picker, item)
+		if jit.os ~= 'Linux' then
+			Snacks.notify.error("Yank to clipboard is only supported on Linux")
+		end
 		local selected_paths = resolve_selection(picker, item, {
 			fallback = "highlighted",
 			output = "paths",

@@ -75,6 +75,9 @@ end
 ---@param paths string[]
 ---@return boolean|nil, string[]|nil
 function M.yank_paths_to_clipboard(paths)
+	if vim.fn.executable('wl-copy') ~= 1 then
+		return nil, { "wl-copy is not installed" }
+	end
 	local uri_list = vim.iter(paths):map(vim.uri_from_fname):join('\r\n') .. '\r\n'
 	local job = vim.system({ 'wl-copy', '-t', 'text/uri-list', uri_list }, { stderr = false }):wait()
 	local errors = system_errors('wl-copy', job)
