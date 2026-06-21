@@ -67,13 +67,13 @@ function M.open(opts)
 			"--strip-cwd-prefix",
 			"--no-require-git",
 		}
-		if _opts.show_hidden then
+		if _opts.hidden then
 			vim.list_extend(_opts.args, { "--hidden" })
 		end
-		if _opts.show_ignored then
+		if _opts.ignored then
 			vim.list_extend(_opts.args, { "--no-ignore-vcs" })
 		end
-		if _opts.follow_symlinks then
+		if _opts.follow then
 			vim.list_extend(_opts.args, { "--follow" })
 		end
 		_opts.cmd = "fd"
