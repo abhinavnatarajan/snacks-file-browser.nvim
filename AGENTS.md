@@ -21,7 +21,6 @@
 
 ## Clipboard Gotchas
 
-- Keep platform-specific clipboard code inside `utils.lua`; `actions.lua` should call `Utils.get_clipboard_paths()`.
-- Linux paste uses `wl-paste -t text/uri-list -n` and parses file URIs; macOS paste uses `osascript -l JavaScript` and expects a JSON array of POSIX paths.
-- `yank_to_clipboard` still uses `wl-copy` and is Linux Wayland-only.
+- Keep platform-specific clipboard code inside `utils.lua`; `actions.lua` should call clipboard helpers on `Utils`.
+- Linux clipboard integration uses `wl-copy`/`wl-paste` with `text/uri-list`; macOS clipboard integration uses `osascript -l JavaScript` and JSON arrays of POSIX paths.
 - If changing user-visible action behavior or keymaps, update both `README.md` and relevant tests.

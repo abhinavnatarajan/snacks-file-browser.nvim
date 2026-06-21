@@ -75,6 +75,14 @@ local function with_jit_os(os_name, fn)
 	if not ok then error(err, 0) end
 end
 
+local function with_executable(executable_fn, fn)
+	local original_executable = vim.fn.executable
+	vim.fn.executable = executable_fn
+	local ok, err = xpcall(fn, debug.traceback)
+	vim.fn.executable = original_executable
+	if not ok then error(err, 0) end
+end
+
 local function with_ui_select(select_fn, fn)
 	local original_select = vim.ui.select
 	vim.ui.select = select_fn
@@ -106,21 +114,69 @@ test("yank_paths_to_clipboard emits CRLF text/uri-list", function()
 		write_file(first, { "one" })
 		write_file(second, { "two" })
 
+		with_jit_os("Linux", function()
+			with_system(function()
+				with_executable(function(command)
+					return command == "wl-copy" and 1 or 0
+				end, function()
+					local calls = {}
+					vim.system = function(cmd, opts)
+						table.insert(calls, { cmd = cmd, opts = opts })
+						return { wait = function() return { code = 0, signal = 0, stdout = "" } end }
+					end
+
+					local ok, errors = Utils.yank_paths_to_clipboard({ first, second })
+					assert_eq(ok, true)
+					assert_eq(errors, nil)
+					assert_eq(calls[1].cmd[1], "wl-copy")
+					assert_eq(calls[1].cmd[3], "text/uri-list")
+					assert_eq(calls[1].opts.stderr, false)
+					assert_eq(calls[1].cmd[4], vim.uri_from_fname(first) .. "\r\n" .. vim.uri_from_fname(second) .. "\r\n")
+				end)
+			end)
+		end)
+	end)
+end)
+
+test("yank_paths_to_clipboard writes macOS file URLs", function()
+	with_jit_os("OSX", function()
 		with_system(function()
-			local calls = {}
+			local first = "/Users/test/one file.txt"
+			local second = "/Users/test/two\nlines.txt"
 			vim.system = function(cmd, opts)
-				table.insert(calls, { cmd = cmd, opts = opts })
+				assert_eq(cmd[1], "osascript")
+				assert_eq(cmd[2], "-l")
+				assert_eq(cmd[3], "JavaScript")
+				assert_eq(cmd[4], "-e")
+				assert_match(cmd[5], "writeObjects")
+				assert_eq(vim.json.decode(cmd[6]), { first, second })
+				assert_eq(opts.text, true)
 				return { wait = function() return { code = 0, signal = 0, stdout = "" } end }
 			end
 
 			local ok, errors = Utils.yank_paths_to_clipboard({ first, second })
 			assert_eq(ok, true)
 			assert_eq(errors, nil)
-			assert_eq(calls[1].cmd[1], "wl-copy")
-			assert_eq(calls[1].cmd[3], "text/uri-list")
-			assert_eq(calls[1].opts.stderr, false)
-			assert_eq(calls[1].cmd[4], vim.uri_from_fname(first) .. "\r\n" .. vim.uri_from_fname(second) .. "\r\n")
 		end)
+	end)
+end)
+
+test("yank_paths_to_clipboard reports macOS and unsupported platform errors", function()
+	with_jit_os("OSX", function()
+		with_system(function()
+			vim.system = function()
+				return { wait = function() return { code = 1, signal = 0, stdout = "" } end }
+			end
+			local ok, errors = Utils.yank_paths_to_clipboard({ "/tmp/a" })
+			assert_eq(ok, nil)
+			assert_match(errors[1], "osascript failed")
+		end)
+	end)
+
+	with_jit_os("BSD", function()
+		local ok, errors = Utils.yank_paths_to_clipboard({ "/tmp/a" })
+		assert_eq(ok, nil)
+		assert_match(errors[1], "Linux and macOS")
 	end)
 end)
 

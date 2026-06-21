@@ -74,7 +74,7 @@ end
 
 ---@param paths string[]
 ---@return boolean|nil, string[]|nil
-function M.yank_paths_to_clipboard(paths)
+local function yank_paths_to_clipboard_linux(paths)
 	if vim.fn.executable('wl-copy') ~= 1 then
 		return nil, { "wl-copy is not installed" }
 	end
@@ -85,6 +85,54 @@ function M.yank_paths_to_clipboard(paths)
 		return nil, errors
 	end
 	return true
+end
+
+local macos_yank_clipboard_script = [[
+ObjC.import("AppKit");
+
+function run(argv) {
+  const paths = JSON.parse(argv[0]);
+  if (!Array.isArray(paths) || paths.length === 0) {
+    throw new Error("No paths provided");
+  }
+
+  const urls = $.NSMutableArray.arrayWithCapacity(paths.length);
+  for (const path of paths) {
+    if (typeof path !== "string" || path.length === 0) {
+      throw new Error("Invalid file path");
+    }
+    urls.addObject($.NSURL.fileURLWithPath($(path)));
+  }
+
+  const pasteboard = $.NSPasteboard.generalPasteboard;
+  pasteboard.clearContents();
+  if (!pasteboard.writeObjects(urls)) {
+    throw new Error("Could not write file URLs to clipboard");
+  }
+}
+]]
+
+---@param paths string[]
+---@return boolean|nil, string[]|nil
+local function yank_paths_to_clipboard_macos(paths)
+	local job = vim.system({ 'osascript', '-l', 'JavaScript', '-e', macos_yank_clipboard_script, vim.json.encode(paths) }, { text = true }):wait()
+	local errors = system_errors('osascript', job)
+	if errors then
+		return nil, errors
+	end
+	return true
+end
+
+---@param paths string[]
+---@return boolean|nil, string[]|nil
+function M.yank_paths_to_clipboard(paths)
+	if jit.os == 'Linux' then
+		return yank_paths_to_clipboard_linux(paths)
+	end
+	if jit.os == 'OSX' then
+		return yank_paths_to_clipboard_macos(paths)
+	end
+	return nil, { "Yank to clipboard is only supported on Linux and macOS" }
 end
 
 ---@return string[]|nil, string[]|nil
