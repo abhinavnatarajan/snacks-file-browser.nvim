@@ -70,7 +70,7 @@ function M.open(opts)
 			vim.list_extend(_opts.args, { "--hidden" })
 		end
 		if _opts.show_ignored then
-			vim.list_extend(_opts.args, { "--no-ignore" })
+			vim.list_extend(_opts.args, { "--no-ignore-vcs" })
 		end
 		if _opts.follow_symlinks then
 			vim.list_extend(_opts.args, { "--follow" })
