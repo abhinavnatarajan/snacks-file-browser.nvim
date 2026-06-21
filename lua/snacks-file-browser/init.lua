@@ -64,7 +64,8 @@ function M.open(opts)
 		_opts.args = {
 			"--max-depth=1",
 			"--color=never",
-			"--strip-cwd-prefix"
+			"--strip-cwd-prefix",
+			"--no-require-git",
 		}
 		if _opts.show_hidden then
 			vim.list_extend(_opts.args, { "--hidden" })
@@ -85,6 +86,7 @@ function M.open(opts)
 		end
 		return require('snacks.picker.source.proc').proc(_opts, ctx)
 	end
+	vim.notify(vim.inspect(opts))
 	opts = vim.tbl_deep_extend('force', Config.get(), {
 		cwd = cwd,
 		finder = finder,
