@@ -66,12 +66,14 @@ function M.open(opts)
 			"--color=never",
 			"--strip-cwd-prefix",
 			"--no-require-git",
+			"--exclude",
+			".git",
 		}
 		if _opts.hidden then
 			vim.list_extend(_opts.args, { "--hidden" })
 		end
 		if _opts.ignored then
-			vim.list_extend(_opts.args, { "--no-ignore-vcs" })
+			vim.list_extend(_opts.args, { "--no-ignore" })
 		end
 		if _opts.follow then
 			vim.list_extend(_opts.args, { "--follow" })
