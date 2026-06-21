@@ -6,7 +6,7 @@ This is similar to `nvim-telescope/Telescope-file-browser.nvim`.
 ## Requirements
 
 - [fd](https://github.com/sharkdp/fd)
-- [wl-clipboard](https://github.com/bugaevc/wl-clipboard) for file clipboard actions. Clipboard integration currently supports Wayland only.
+- [wl-clipboard](https://github.com/bugaevc/wl-clipboard) for Linux Wayland file clipboard actions. macOS paste-from-clipboard uses the system `osascript` command.
 
 ## Installation
 
@@ -73,7 +73,7 @@ The `on_confirm` callback receives the picker and a list of picker items. Each i
 | `<C-]>`    | `n, i` | Set Neovim's tab-local cwd to the picker's directory.                          |
 | `<M-c>`    | `n, i` | Yank selected path(s) to a register.                                           |
 | `<C-c>`    | `n, i` | Yank selected item(s) to the system clipboard. Wayland only.                   |
-| `<C-v>`    | `n, i` | Paste item(s) from the system clipboard. Wayland only.                         |
+| `<C-v>`    | `n, i` | Paste item(s) from the system clipboard. Linux Wayland and macOS.              |
 | `<M-p>`    | `n, i` | Copy selected item(s) to the current directory.                                |
 | `<M-m>`    | `n, i` | Move selected item(s) to the current directory.                                |
 | `<M-d>`    | `n, i` | Delete selected item(s).                                                       |
@@ -93,7 +93,7 @@ The `on_confirm` callback receives the picker and a list of picker items. Each i
 | `<C-]>`    | `n`    | Set Neovim's tab-local cwd to the picker's directory.                |
 | `<M-c>`    | `n, i` | Yank selected path(s) to a register.                                 |
 | `<C-c>`    | `n, x` | Yank selected item(s) to the system clipboard. Wayland only.         |
-| `<C-v>`    | `n, x` | Paste item(s) from the system clipboard. Wayland only.               |
+| `<C-v>`    | `n, x` | Paste item(s) from the system clipboard. Linux Wayland and macOS.    |
 | `p`        | `n`    | Copy selected item(s) to the current directory.                      |
 | `m`        | `n`    | Move selected item(s) to the current directory.                      |
 | `d`        | `n, x` | Delete selected item(s).                                             |
@@ -118,7 +118,7 @@ The actions below use selected items when selections exist. Unless stated otherw
 | `create_new` | Create a new file or directory. If the picker input is empty, prompt for a path; otherwise use the picker input. A trailing path separator creates a directory and enters it; otherwise a file is created and the picker moves to its parent directory. |
 | `yank_paths` | Yank selected path(s), or the highlighted path when nothing is selected, to the active register as linewise text. |
 | `yank_to_clipboard` | Yank selected item(s), or the highlighted item when nothing is selected, to the system clipboard as `text/uri-list`. Currently supports Wayland only via `wl-copy`. |
-| `paste_from_clipboard` | Paste files from the system clipboard into the picker's current directory. Currently supports Wayland only via `wl-paste`. |
+| `paste_from_clipboard` | Paste files from the system clipboard into the picker's current directory. Supports Linux Wayland via `wl-paste` and macOS via `osascript`/JXA. |
 | `copy` | Copy explicitly selected item(s) to the picker's current directory. This action does not fall back to the highlighted item. |
 | `move` | Move explicitly selected item(s) to the picker's current directory. This action does not fall back to the highlighted item. |
 | `delete` | Delete selected item(s), or the highlighted item when nothing is selected, after confirmation. Open buffers for deleted files are wiped. |

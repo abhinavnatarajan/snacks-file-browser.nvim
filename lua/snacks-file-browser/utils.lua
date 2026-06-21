@@ -88,7 +88,7 @@ function M.yank_paths_to_clipboard(paths)
 end
 
 ---@return string[]|nil, string[]|nil
-function M.get_clipboard_paths()
+local function get_clipboard_paths_linux()
 	local job = vim.system({ 'wl-paste', '-t', 'text/uri-list', '-n' }, { text = true }):wait()
 	local errors = system_errors('wl-paste', job)
 	if errors then
@@ -118,6 +118,71 @@ function M.get_clipboard_paths()
 		return nil, { "No files in clipboard" }
 	end
 	return paths
+end
+
+local macos_clipboard_script = [[
+ObjC.import("AppKit");
+
+const pasteboard = $.NSPasteboard.generalPasteboard;
+const urls = pasteboard.readObjectsForClassesOptions(
+  $.NSArray.arrayWithObject($.NSURL),
+  $({})
+);
+
+if (!urls || urls.count === 0) {
+  throw new Error("Clipboard does not contain file URLs");
+}
+
+const paths = [];
+for (let i = 0; i < urls.count; i++) {
+  const url = urls.objectAtIndex(i);
+  if (!url.isFileURL) {
+    throw new Error("Clipboard contains a non-file URL");
+  }
+  paths.push(ObjC.unwrap(url.path));
+}
+
+JSON.stringify(paths);
+]]
+
+---@return string[]|nil, string[]|nil
+local function get_clipboard_paths_macos()
+	local job = vim.system({ 'osascript', '-l', 'JavaScript', '-e', macos_clipboard_script }, { text = true }):wait()
+	local errors = system_errors('osascript', job)
+	if errors then
+		return nil, errors
+	end
+	if not job.stdout or job.stdout == "" then
+		return nil, { "No files in clipboard" }
+	end
+
+	local ok, decoded = pcall(vim.json.decode, job.stdout)
+	if not ok or type(decoded) ~= "table" then
+		return nil, { "Invalid clipboard file path JSON" }
+	end
+	if #decoded == 0 then
+		return nil, { "No files in clipboard" }
+	end
+
+	local paths = {}
+	for index, path in ipairs(decoded) do
+		if type(path) ~= "string" or path == "" then
+			return nil, { "Invalid clipboard file path at index " .. tostring(index) }
+		end
+		table.insert(paths, path)
+	end
+	return paths
+end
+
+---@return string[]|nil, string[]|nil
+function M.get_clipboard_paths()
+	if jit.os == 'Linux' then
+		return get_clipboard_paths_linux()
+	end
+	if jit.os == 'OSX' then
+		return get_clipboard_paths_macos()
+	end
+	return nil, { "Paste from clipboard is only supported on Linux and macOS" }
 end
 
 ---Update the title of the picker, truncating if required.

@@ -67,6 +67,14 @@ local function with_system(fn)
 	if not ok then error(err, 0) end
 end
 
+local function with_jit_os(os_name, fn)
+	local original_os = jit.os
+	jit.os = os_name
+	local ok, err = xpcall(fn, debug.traceback)
+	jit.os = original_os
+	if not ok then error(err, 0) end
+end
+
 local function with_ui_select(select_fn, fn)
 	local original_select = vim.ui.select
 	vim.ui.select = select_fn
@@ -123,60 +131,128 @@ test("get_clipboard_paths parses local file URI forms", function()
 		write_file(first, { "one" })
 		write_file(second, { "two" })
 
-		with_system(function()
-			local function clipboard(stdout)
-				vim.system = function(cmd, opts)
-					assert_eq(cmd, { "wl-paste", "-t", "text/uri-list", "-n" })
-					assert_eq(opts.text, true)
-					return { wait = function() return { code = 0, signal = 0, stdout = stdout } end }
+		with_jit_os("Linux", function()
+			with_system(function()
+				local function clipboard(stdout)
+					vim.system = function(cmd, opts)
+						assert_eq(cmd, { "wl-paste", "-t", "text/uri-list", "-n" })
+						assert_eq(opts.text, true)
+						return { wait = function() return { code = 0, signal = 0, stdout = stdout } end }
+					end
+					return Utils.get_clipboard_paths()
 				end
-				return Utils.get_clipboard_paths()
-			end
 
-			local paths, errors = clipboard("# comment\r\n" ..
-				vim.uri_from_fname(first) .. "\r\n" .. vim.uri_from_fname(second) .. "\n")
-			assert_eq(paths, { first, second })
-			assert_eq(errors, nil)
+				local paths, errors = clipboard("# comment\r\n" ..
+					vim.uri_from_fname(first) .. "\r\n" .. vim.uri_from_fname(second) .. "\n")
+				assert_eq(paths, { first, second })
+				assert_eq(errors, nil)
 
-			paths, errors = clipboard("file:" .. first .. "\r\n")
-			assert_eq(paths, { first })
-			assert_eq(errors, nil)
+				paths, errors = clipboard("file:" .. first .. "\r\n")
+				assert_eq(paths, { first })
+				assert_eq(errors, nil)
 
-			paths, errors = clipboard("file://localhost" .. first .. "\r\n")
-			assert_eq(paths, { first })
-			assert_eq(errors, nil)
+				paths, errors = clipboard("file://localhost" .. first .. "\r\n")
+				assert_eq(paths, { first })
+				assert_eq(errors, nil)
+			end)
 		end)
 	end)
 end)
 
 test("get_clipboard_paths rejects non-local clipboard URIs", function()
-	with_system(function()
-		local function clipboard(stdout)
-			vim.system = function()
-				return { wait = function() return { code = 0, signal = 0, stdout = stdout } end }
+	with_jit_os("Linux", function()
+		with_system(function()
+			local function clipboard(stdout)
+				vim.system = function()
+					return { wait = function() return { code = 0, signal = 0, stdout = stdout } end }
+				end
+				return Utils.get_clipboard_paths()
 			end
-			return Utils.get_clipboard_paths()
-		end
 
-		local paths, errors = clipboard("https://example.com/a.txt\r\n")
-		assert_eq(paths, nil)
-		assert_true(type(errors) == "table")
-		assert_match(errors[1], "Unsupported clipboard URI scheme")
+			local paths, errors = clipboard("https://example.com/a.txt\r\n")
+			assert_eq(paths, nil)
+			assert_true(type(errors) == "table")
+			assert_match(errors[1], "Unsupported clipboard URI scheme")
 
-		paths, errors = clipboard("file://host.example.com/path/to/a.txt\r\n")
-		assert_eq(paths, nil)
-		assert_match(errors[1], "Unsupported non%-local clipboard URI")
+			paths, errors = clipboard("file://host.example.com/path/to/a.txt\r\n")
+			assert_eq(paths, nil)
+			assert_match(errors[1], "Unsupported non%-local clipboard URI")
 
-		paths, errors = clipboard("file:////host.example.com/path/to/a.txt\r\n")
-		assert_eq(paths, nil)
-		assert_match(errors[1], "Unsupported non%-local clipboard URI")
+			paths, errors = clipboard("file:////host.example.com/path/to/a.txt\r\n")
+			assert_eq(paths, nil)
+			assert_match(errors[1], "Unsupported non%-local clipboard URI")
 
-		vim.system = function()
-			return { wait = function() return { code = 3, signal = 0, stdout = "" } end }
-		end
-		paths, errors = Utils.get_clipboard_paths()
+			vim.system = function()
+				return { wait = function() return { code = 3, signal = 0, stdout = "" } end }
+			end
+			paths, errors = Utils.get_clipboard_paths()
+			assert_eq(paths, nil)
+			assert_match(errors[1], "wl%-paste failed")
+		end)
+	end)
+end)
+
+test("get_clipboard_paths parses macOS JSON path output", function()
+	with_jit_os("OSX", function()
+		with_system(function()
+			local first = "/Users/test/one file.txt"
+			local second = "/Users/test/two\nlines.txt"
+			vim.system = function(cmd, opts)
+				assert_eq(cmd[1], "osascript")
+				assert_eq(cmd[2], "-l")
+				assert_eq(cmd[3], "JavaScript")
+				assert_eq(cmd[4], "-e")
+				assert_match(cmd[5], "NSPasteboard")
+				assert_eq(opts.text, true)
+				return { wait = function() return { code = 0, signal = 0, stdout = vim.json.encode({ first, second }) } end }
+			end
+
+			local paths, errors = Utils.get_clipboard_paths()
+			assert_eq(paths, { first, second })
+			assert_eq(errors, nil)
+		end)
+	end)
+end)
+
+test("get_clipboard_paths reports macOS clipboard errors", function()
+	with_jit_os("OSX", function()
+		with_system(function()
+			vim.system = function()
+				return { wait = function() return { code = 1, signal = 0, stdout = "" } end }
+			end
+			local paths, errors = Utils.get_clipboard_paths()
+			assert_eq(paths, nil)
+			assert_match(errors[1], "osascript failed")
+
+			vim.system = function()
+				return { wait = function() return { code = 0, signal = 0, stdout = "not json" } end }
+			end
+			paths, errors = Utils.get_clipboard_paths()
+			assert_eq(paths, nil)
+			assert_match(errors[1], "Invalid clipboard file path JSON")
+
+			vim.system = function()
+				return { wait = function() return { code = 0, signal = 0, stdout = "[]" } end }
+			end
+			paths, errors = Utils.get_clipboard_paths()
+			assert_eq(paths, nil)
+			assert_match(errors[1], "No files in clipboard")
+
+			vim.system = function()
+				return { wait = function() return { code = 0, signal = 0, stdout = vim.json.encode({ "/tmp/a", false }) } end }
+			end
+			paths, errors = Utils.get_clipboard_paths()
+			assert_eq(paths, nil)
+			assert_match(errors[1], "Invalid clipboard file path at index 2")
+		end)
+	end)
+end)
+
+test("get_clipboard_paths reports unsupported platforms", function()
+	with_jit_os("BSD", function()
+		local paths, errors = Utils.get_clipboard_paths()
 		assert_eq(paths, nil)
-		assert_match(errors[1], "wl%-paste failed")
+		assert_match(errors[1], "Linux and macOS")
 	end)
 end)
 
