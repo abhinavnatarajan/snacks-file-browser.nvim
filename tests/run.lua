@@ -384,6 +384,46 @@ test("copy action requires explicit selection", function()
 	assert_match(state.notifications[1].msg, "No items selected")
 end)
 
+test("accept enters highlighted directory with stale empty-input score", function()
+	local cwd = vim.fs.normalize(root)
+	local child = vim.fs.normalize(vim.fs.joinpath(cwd, "lua"))
+	local set_cwd_calls = {}
+	local find_count = 0
+	local picker = {
+		opts = {
+			on_confirm = function()
+				fail("accept should enter the highlighted directory")
+			end,
+		},
+		cwd = function()
+			return cwd
+		end,
+		set_cwd = function(_, new_cwd)
+			table.insert(set_cwd_calls, new_cwd)
+		end,
+		find = function()
+			find_count = find_count + 1
+		end,
+		update_titles = function() end,
+		input = {
+			win = {
+				size = function()
+					return { width = 80 }
+				end,
+			},
+			get = function()
+				return ""
+			end,
+			set = function() end,
+		},
+	}
+
+	Actions.actions.accept.action(picker, { file = child, text = "lua/", dir = true, score = 0 })
+
+	assert_eq(set_cwd_calls, { child })
+	assert_eq(find_count, 1)
+end)
+
 test("create_file creates parent directories", function()
 	with_tempdir(function(dir)
 		local file = vim.fs.joinpath(dir, "nested", "child", "file.txt")

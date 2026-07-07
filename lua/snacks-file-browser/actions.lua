@@ -168,13 +168,14 @@ M.actions.accept = {
 	---@param picker SnacksFileBrowser
 	---@param item SnacksFileBrowser.Item
 	action = function(picker, item)
+		-- Intentionally ignores resolve_selection.
+		-- This function operates only on the highlighted item or input text,
+		-- not on selected items.
 		local callback = picker.opts.on_confirm
+		local input = picker.input:get()
 
-		-- No items selected, so we create an item.
 		-- Case 1: No items in the list or the items do not match the input.
-		if not item or item.score == 0 then
-			local input = picker.input:get()
-			if input == "" then return end
+		if input ~= "" and (not item or item.score == 0) then
 			local new_path = vim.fs.joinpath(picker:cwd(), input)
 			-- If the path is a directory we create it and navigate into it.
 			local os_pathsep = package.config:sub(1, 1)
@@ -194,6 +195,7 @@ M.actions.accept = {
 			end
 			return
 		end
+		if not item then return end
 
 		-- Case 2: A valid item is in in the list
 		if item.dir then

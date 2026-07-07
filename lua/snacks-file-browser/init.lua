@@ -88,7 +88,6 @@ function M.open(opts)
 		end
 		return require('snacks.picker.source.proc').proc(_opts, ctx)
 	end
-	vim.notify(vim.inspect(opts))
 	opts = vim.tbl_deep_extend('force', Config.get(), {
 		cwd = cwd,
 		finder = finder,
