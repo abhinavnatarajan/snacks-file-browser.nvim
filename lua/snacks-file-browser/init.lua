@@ -58,7 +58,6 @@ local function save_as(bufnr, items)
 end
 
 function M.open(opts)
-	local cwd = opts and opts.cwd or vim.uv.cwd()
 	local os_pathsep = package.config:sub(1, 1)
 	local finder = function(_opts, ctx)
 		_opts.args = {
@@ -89,7 +88,7 @@ function M.open(opts)
 		return require('snacks.picker.source.proc').proc(_opts, ctx)
 	end
 	opts = vim.tbl_deep_extend('force', Config.get(), {
-		cwd = cwd,
+		cwd = vim.uv.cwd(),
 		finder = finder,
 	}, opts or {})
 
